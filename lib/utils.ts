@@ -1,6 +1,24 @@
-import { MIN_TIME_FRAME } from "./candles";
+import { ITick, MIN_TIME_FRAME } from "./candles";
 import { readdir } from 'fs/promises';
 import { format } from 'date-fns';
+
+
+export const tickMapToJSONArray = (map: Map<number, ITick>) => {
+    const arr: (ITick & { t: number })[] = []
+    for (let [key, value] of map) {
+        arr.push({
+            t: key,
+            o: value.o,
+            h: value.h,
+            l: value.l,
+            c: value.c,
+            vb: value.vb,
+            vs: value.vs,
+            tc: value.tc
+        })
+    }
+    return arr
+}
 
 export function extractDateFromTradeZipFile(filename: string): string | null {
     // Regular expression to match the date in the filename

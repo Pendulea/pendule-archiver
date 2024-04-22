@@ -31,8 +31,6 @@ export class MyDB {
                 const err = await parseAndStoreZipArchive(this, this.symbol, d)
                 if (err){
                     throw err
-                } else {
-                    console.log(`Parsed and stored ${d} for ${this.symbol}`)
                 }
             }
         }

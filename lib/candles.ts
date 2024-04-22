@@ -12,7 +12,7 @@ export interface ITick {
     vb: number; // volume buyed
     vs: number; // volume sold
     tc: number; // trade count
-  }
+}
   
 
 export const getEarliestTimeRecorded = async (db: Level<string, string>, label: string): Promise<number | null> => {

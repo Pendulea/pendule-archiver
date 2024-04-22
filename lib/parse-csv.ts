@@ -100,6 +100,7 @@ export const parseAndStoreZipArchive = async (db: MyDB, symbol: string, date: st
     if (err)
       return err
     await db.setLastCSVDate(date)
+    console.log(`Parsed ${records.length} trades for ${symbol} (${date})`)
     return null    
   } catch (error) {
     console.error('Failed to parse CSV:', error);
