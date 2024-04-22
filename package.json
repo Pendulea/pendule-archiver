@@ -1,0 +1,25 @@
+{
+  "name": "ok",
+  "version": "1.0.0",
+  "main": "index.js",
+  "license": "MIT",
+  "scripts": {
+    "start": "ts-node index.ts"
+  },
+  "devDependencies": {
+    "@types/node": "^20.12.7",
+    "polyprice": "^1.0.9",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.4.3"
+  },
+  "dependencies": {
+    "@types/csv-parse": "^1.2.2",
+    "@types/level": "^6.0.3",
+    "acey-node-store": "^1.1.1",
+    "adm-zip": "^0.5.12",
+    "axios": "^1.6.8",
+    "csv-parse": "^5.5.5",
+    "date-fns": "^3.6.0",
+    "level": "^8.0.1"
+  }
+}
