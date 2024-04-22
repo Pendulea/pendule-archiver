@@ -5,7 +5,8 @@ import morgan from 'morgan'
 import { getCandlesInDateRange } from "./lib/candles";
 import { strDateToDate, tickMapToJSONArray } from "./lib/utils";
 
-const db = new MyDB('CTSIUSDT', '2020-04-23')
+const CtsiUsdtDB = new MyDB('CTSIUSDT', '2020-04-23')
+const BtcUsdtDB = new MyDB('BTCUSDT', '2017-08-17')
 
 const app = express();
 app.use(express.json());
@@ -35,18 +36,19 @@ app.get('/pair/:pair/:timeframe', async (req, res) => {
     const t0 = strDateToDate(date as string)
     const t1 = t0.getTime() + 24 * 60 * 60 * 1000
 
-    const ret = await getCandlesInDateRange(db.db, ts as string, t0.getTime() / 1000, t1 / 1000)
+    const ret = await getCandlesInDateRange(CtsiUsdtDB.db, ts as string, t0.getTime() / 1000, t1 / 1000)
     res.json(tickMapToJSONArray(ret))
 })
 
 const main = async () => {
-    await db.init()
-    await app.listen({
-        port: 8080,
-        host: '0.0.0.0',
-    }, () => {
-        console.log('[API]', 'Listening on port', 8080)
-    });
+    await CtsiUsdtDB.init()
+    // await BtcUsdtDB.init()
+    // await app.listen({
+    //     port: 8080,
+    //     host: '0.0.0.0',
+    // }, () => {
+    //     console.log('[API]', 'Listening on port', 8080)
+    // });
 }
 
 main()

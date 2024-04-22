@@ -67,10 +67,12 @@ function unzipFile(zipPath: string, outputPath: string): null | Error{
     }
 }
 
-export const parseAndStoreZipArchive = async (db: MyDB, symbol: string, date: string) => {
-  const d = await db.getLastCSVDate()
-  if (d && date <= d)
+export const parseAndStoreZipArchive = async (db: MyDB, date: string) => {
+  const { symbol } = db
+  const r = await db.isDateParsed(date)
+  if (r || date < db.minHistoricalDate){
     return null
+  }
   const path = `${ARCHIVE_FOLDER}/${symbol}/${symbol}-trades-${date}`;
   const err = unzipFile(`${path}.zip`, `${ARCHIVE_FOLDER}/${symbol}`)
   if (err)
@@ -96,11 +98,14 @@ export const parseAndStoreZipArchive = async (db: MyDB, symbol: string, date: st
       }
   })
     fs.unlink(`${path}.csv`, () => null);
-    const err =  await aggregateAndStore(db, records);
-    if (err)
-      return err
-    await db.setLastCSVDate(date)
-    console.log(`Parsed ${records.length} trades for ${symbol} (${date})`)
+
+    const candles = aggregateTradesToCandles(records, MIN_TIME_FRAME);
+    const err2 = await storeCandles(db, candles, timeFrameToLabel(MIN_TIME_FRAME));
+    if (err2) {
+      return err2
+    }
+    await db.setDateAsParsed(date)
+    console.log(`Parsed ${records.length} trades into ${candles.size} candles for ${symbol} (${date})`)
     return null    
   } catch (error) {
     console.error('Failed to parse CSV:', error);

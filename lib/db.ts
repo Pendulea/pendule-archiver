@@ -1,72 +1,70 @@
 import fs from 'fs'
 import { Level } from 'level'
-import { downloadSymbolArchives, getAllArchiveFiles, getOldestArchiveDayAge } from './archive-downloader'
+import { downloadSymbolArchives } from './archive-downloader'
 import { parseAndStoreZipArchive } from './parse-csv'
 import { extractDateFromTradeZipFile } from './utils'
 
 const DATABASES_PATH = './databases'
 
+class queue { 
+
+    private _isRunning = false
+    toRun: {db: MyDB, date: string}[] = []
+    constructor(){}
+
+    add = (db: MyDB, date: string) => {
+        this.toRun.push({db, date})
+        this.run()
+    }
+
+    private async run () {
+        if (this._isRunning) {
+            return
+        }
+        this._isRunning = true
+        const first = this.toRun.shift()
+        if (!first) {
+            this._isRunning = false
+            return
+        }
+        const err = await parseAndStoreZipArchive(first.db, first.date)
+        if (err) {
+            console.error(err)
+        }
+        this._isRunning = false
+        this.run()
+    }
+}
+
+const engine = new queue()
+
+
 export class MyDB {
     public db: Level<string, string>
     
-    private _lastCSVDate: string | null = null
-    constructor(public symbol: string, private minHistoricalDate: string) {
+    constructor(public symbol: string, public minHistoricalDate: string) {
         fs.existsSync(DATABASES_PATH) || fs.mkdirSync(DATABASES_PATH, {recursive: true})
         const db = new Level(`${DATABASES_PATH}/${symbol.toLowerCase()}`, { valueEncoding: 'json' })
         this.db = db
     }
 
     init = async () => {
-        const genesis = await this.getGenesisDate()
-        if (!genesis) {
-            await this.setGenesisDate(this.minHistoricalDate)
-        } else {
-            this._lastCSVDate = await this.getLastCSVDate()
-        }
-        await downloadSymbolArchives(this.symbol, this.minHistoricalDate)
-        const allFiles = await getAllArchiveFiles(this.symbol)
-        for (const file of allFiles){
-            const d = extractDateFromTradeZipFile(file)
-            if (d){
-                const err = await parseAndStoreZipArchive(this, this.symbol, d)
-                if (err){
-                    throw err
-                }
-            }
-        }
+        await downloadSymbolArchives(this, async (date: string) => {
+            engine.add(this, date)
+        })
     }
 
-    private setGenesisDate = (date: string) => {
-        return this.db.put('genesis', date)
+    public setDateAsParsed = (date: string) => {
+        return this.db.put(`parsed:${date}`, '1')
     }
-    
-    public getGenesisDate = async () => {
+
+    public isDateParsed = async (date: string) => {
         try {
-            const genesis = await this.db.get('genesis')
-            return genesis
+            await this.db.get(`parsed:${date}`)
+            return true
         } catch (err: any) {
             if (err.message.includes('NotFound')) {
-                return null
-            }
-            throw err
-        }
-    }
-
-    public setLastCSVDate = (date: string) => {
-        this._lastCSVDate = date
-        return this.db.put('lastCSV', date)
-    }
-
-    public getLastCSVDate = async () => {
-        try {
-            if (this._lastCSVDate){
-                return this._lastCSVDate
-            }
-            const lastCSV = await this.db.get('lastCSV')
-            return lastCSV
-        } catch (err: any) {
-            if (err.message.includes('NotFound')) {
-                return null
+                return false
             }
             throw err
         }

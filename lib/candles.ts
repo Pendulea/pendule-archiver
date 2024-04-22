@@ -2,7 +2,7 @@ import { Level } from "level";
 import { MyDB } from "./db";
 import { timeFrameToLabel } from "./utils";
 
-export const MIN_TIME_FRAME = 15_000;
+export const MIN_TIME_FRAME = 1_000;
 
 export interface ITick {
     o: number; // open
@@ -13,7 +13,6 @@ export interface ITick {
     vs: number; // volume sold
     tc: number; // trade count
 }
-  
 
 export const getEarliestTimeRecorded = async (db: Level<string, string>, label: string): Promise<number | null> => {
     try {
@@ -100,6 +99,15 @@ export const storeNewTimeFrameCandles = async (db: MyDB, timeFrame: number): Pro
     return storeCandles(db, newCandles, newTF)
 }
 
+const stringifyTick = (tick: ITick): string => {
+  return `${tick.o}|${tick.h}|${tick.l}|${tick.c}|${tick.vb}|${tick.vs}|${tick.tc}`;
+}
+
+const parseTick = (str: string): ITick => {
+  const [o, h, l, c, vb, vs, tc] = str.split('|').map(parseFloat);
+  return { o, h, l, c, vb, vs, tc };
+}
+
 
 export const getCandlesInDateRange = async (db: Level<string, string>, label: string, t0: number, t1: number): Promise<Map<number, ITick>> => {
     const candles = new Map<number, ITick>();
@@ -111,7 +119,7 @@ export const getCandlesInDateRange = async (db: Level<string, string>, label: st
         lt: `${label}:${t1}`
       })) {
         const timeInSeconds = parseInt(key.split(':')[1]);
-        const tickData: ITick = JSON.parse(value);
+        const tickData = parseTick(value);
         candles.set(timeInSeconds, tickData);
       }
     } catch (err) {
@@ -122,14 +130,14 @@ export const getCandlesInDateRange = async (db: Level<string, string>, label: st
     return candles;
 }
 
-  export async function storeCandles(db: MyDB, candles: Map<number, ITick>, label: string): Promise<null | Error> {
+export async function storeCandles(db: MyDB, candles: Map<number, ITick>, label: string): Promise<null | Error> {
     let earliest = Number.MAX_SAFE_INTEGER;
     const batch = db.db.batch(); // Assuming `db.db` has a batch method available
 
     try {
         for (const [time, value] of candles.entries()) {
             const timeInSeconds = Math.floor(time / 1000);
-            batch.put(`${label}:${timeInSeconds}`, JSON.stringify(value)); // Add to batch
+            batch.put(`${label}:${timeInSeconds}`, stringifyTick(value)); // Add to batch
             if (timeInSeconds < earliest) 
                 earliest = timeInSeconds;
         }
