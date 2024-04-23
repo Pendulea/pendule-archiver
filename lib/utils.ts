@@ -3,18 +3,22 @@ import { readdir } from 'fs/promises';
 import { format } from 'date-fns';
 
 
+export const safeMedian = (values: number[]) => {
+    if (values.length === 0) return 0;
+    const sorted = values.sort((a, b) => a - b);
+    const mid = Math.floor(sorted.length / 2);
+    return sorted.length % 2 !== 0 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
+  };
+  
+export const safeAverage = (values: number[]) => values.reduce((acc, cur) => acc + cur, 0) / (values.length || 1);
+  
+
 export const tickMapToJSONArray = (map: Map<number, ITick>) => {
-    const arr: (ITick & { t: number })[] = []
+    const arr: (ITick & { time: number })[] = []
     for (let [key, value] of map) {
         arr.push({
-            t: key,
-            o: value.o,
-            h: value.h,
-            l: value.l,
-            c: value.c,
-            vb: value.vb,
-            vs: value.vs,
-            tc: value.tc
+            ...value,
+            time: key
         })
     }
     return arr

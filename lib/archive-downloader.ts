@@ -3,11 +3,10 @@ import axios from 'axios';
 import { format, parseISO } from 'date-fns';
 import path from 'path'
 import fs from 'fs'
-import { buildDateStr, extractDateFromTradeZipFile, sortFolderFiles } from './utils';
+import { buildDateStr}  from './utils';
 import { MyDB } from './db';
+import { ARCHIVE_FOLDER } from './constant';
 
-const DAY_MS = 86400000
-export const ARCHIVE_FOLDER = './archives'
 
 type DownloadResult = {
     status: 'success' | 'error';
