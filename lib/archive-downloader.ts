@@ -4,9 +4,10 @@ import { format, parseISO } from 'date-fns';
 import path from 'path'
 import fs from 'fs'
 import { buildDateStr}  from './utils';
-import { MyDB } from './db';
+import { MyDB, engine } from './db';
 import { ARCHIVE_FOLDER } from './constant';
 
+const SHUTDOWN_CODE = 9999
 
 type DownloadResult = {
     status: 'success' | 'error';
@@ -57,6 +58,9 @@ async function downloadFile(url: string, path: string): Promise<DownloadResult> 
 
 // Main function to download all archives from a given start date to today
 export async function downloadArchive(date: string, symbol: string, folderPath: string) {
+    if (engine.isShuttingDown()){
+        return {code: SHUTDOWN_CODE}
+    }
 
     const formattedDate = format(parseISO(date), 'yyyy-MM-dd');
     const fileName = `${symbol}-trades-${formattedDate}.zip`;
@@ -66,18 +70,19 @@ export async function downloadArchive(date: string, symbol: string, folderPath: 
 
     console.log(`Downloading ${fileName}...`);
     const r = await downloadFile(url, fullPath);
-    if (r.code !== 200){
-        // console.error(`Failed to download ${fileName}: ${r.message}`);
-    } else {
+    if (r.code === 200){
         console.log(`${fileName} downloaded successfully.`);
     }
-    return r
+    return r.code
 }
 
 
 const downloadTree = async (db: MyDB, dAgo: {count: number}, onNewArchiveFound: (date: string) => void) => {
     const { symbol } = db
     while (true){
+        if (engine.isShuttingDown()){
+            return {code: SHUTDOWN_CODE}
+        }
         const formattedDate = buildDateStr(dAgo.count);
         if (formattedDate < db.minHistoricalDate){
             return 404
@@ -89,10 +94,10 @@ const downloadTree = async (db: MyDB, dAgo: {count: number}, onNewArchiveFound: 
             dAgo.count++
             continue
         }
-        const r = await downloadArchive(formattedDate, symbol, `${ARCHIVE_FOLDER}/${symbol}`)
-        if (r.code !== 200){
-            return r.code
-        } else if (r.code === 200){
+        const code = await downloadArchive(formattedDate, symbol, `${ARCHIVE_FOLDER}/${symbol}`)
+        if (code !== 200){
+            return code
+        } else if (code === 200){
             onNewArchiveFound(formattedDate)
             dAgo.count++
             await new Promise(resolve => setTimeout(resolve, 500))
@@ -123,27 +128,45 @@ const downloadTree = async (db: MyDB, dAgo: {count: number}, onNewArchiveFound: 
 
 
 export const downloadSymbolArchives = async (db: MyDB, onNewArchiveFound: (date: string) => void) => {
-    const { symbol } = db
+    try {
+        engine.increaseDownloadCount()
+        const { symbol } = db
 
-    const folderPath = `${ARCHIVE_FOLDER}/${symbol}`
+        const folderPath = `${ARCHIVE_FOLDER}/${symbol}`
 
-    fs.existsSync(folderPath) || fs.mkdirSync(folderPath, {recursive: true})
+        fs.existsSync(folderPath) || fs.mkdirSync(folderPath, {recursive: true})
+        const dAgo = {count: 1}
 
-    const dAgo = {count: 1}
-    while (true){
-        const status = await downloadTree(db, dAgo, onNewArchiveFound)
-        if (status === 404){
-            console.log('No more archives to download.')
-            break
+        const waitForSecs = async (secs: number) => {
+            for (let i = 0; i < secs; i++){
+                if (engine.isShuttingDown())
+                    return
+                await new Promise(resolve => setTimeout(resolve, 1000))
+            }
         }
-        if (status === 429){
-            console.log('Rate limit reached. Waiting 1 minute...')
-            await new Promise(resolve => setTimeout(resolve, 60_000))
+
+        while (true){
+            const status = await downloadTree(db, dAgo, onNewArchiveFound)
+            if (status === SHUTDOWN_CODE){
+                console.log(`Download stopped (${db.symbol})`)
+                break
+            }
+            if (status === 404){
+                console.log(`No more archives to download (${db.symbol})`)
+                break
+            }
+            if (status === 429){
+                console.log(`Rate limit reached. Waiting 1 minute... (${db.symbol})`)
+                await waitForSecs(60)
+            }
+            if (status !== 200){
+                console.error(`Failed to download ${status}. Waiting 2 minutes... (${db.symbol})`)
+                await waitForSecs(120) 
+            }
         }
-        if (status !== 200){
-            console.error(`Failed to download ${status}`)
-            await new Promise(resolve => setTimeout(resolve, 30_000))
-        }
+    } catch (error) {
+        console.error('Download failed in downloadSymbolArchives:', error)
+    } finally{
+        engine.decrementDownloadCount()
     }
-
 }

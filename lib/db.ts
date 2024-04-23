@@ -8,19 +8,35 @@ import { MIN_TIME_FRAME, storeNewTimeFrameCandles } from './candles'
 class queue { 
 
     private _isRunning = false
+    private _stop = false
+    private _downloadCountParallel = 0
+
+
     toRun: {db: MyDB, date: string, timeFrame?: number}[] = []
     constructor(){}
 
-    interrupt = () => {
-        this.toRun = []
+    increaseDownloadCount = () => {
+        this._downloadCountParallel++
     }
+    decrementDownloadCount = () => {
+        this._downloadCountParallel--
+    }
+
+    countRunningDownloads = () => this._downloadCountParallel
+
+    shutdown = () => {
+        this.toRun = []
+        this._stop = true
+    }
+
+    isShuttingDown = () => this._stop
 
     isQueuingDBTasks = (db: MyDB) => {
         return this.toRun.some(task => task.db.symbol === db.symbol)
     }
 
     canStop = () => {
-        return this.toRun.length === 0 && !this._isRunning
+        return this.toRun.length === 0 && !this._isRunning && this._downloadCountParallel === 0
     }
 
     containsTask = (db: MyDB, date: string, timeFrame: number) => {
@@ -41,7 +57,7 @@ class queue {
     }
 
     private async run () {
-        if (this._isRunning) {
+        if (this._isRunning || this._stop) {
             return
         }
         this._isRunning = true
@@ -67,14 +83,14 @@ class queue {
     }
 }
 
-const engine = new queue()
+export const engine = new queue()
 
 process.on('SIGINT', async () => {
-    engine.interrupt()
+    engine.shutdown()
     while (!engine.canStop()) {
-        await new Promise(resolve => setTimeout(resolve, 300))
+        await new Promise(resolve => setTimeout(resolve, 1000))
     }
-});
+})
 
 
 
