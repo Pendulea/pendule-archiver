@@ -3,7 +3,7 @@ import { Level } from 'level'
 import { downloadSymbolArchives } from './archive-downloader'
 import { parseAndStoreZipArchive } from './parse-csv'
 import { DATABASES_PATH } from './constant'
-import { MIN_TIME_FRAME, storeNewTimeFrameCandles } from './candles'
+import { MIN_TIME_FRAME, deleteTimeFrameCandles, storeNewTimeFrameCandles } from './candles'
 
 class queue { 
 
@@ -154,11 +154,14 @@ export class MyDB {
     }
 
     removeTimeFrame = async (timeFrame: number) => {
-        const list = await this.getTimeFrameList()
-        const index = list.indexOf(timeFrame)
-        if (index !== -1) {
-            list.splice(index, 1)
-            return this.db.put(`timeframes`, JSON.stringify(list))
+        const err = await deleteTimeFrameCandles(this, timeFrame)
+        if (!err){        
+            const list = await this.getTimeFrameList()
+            const index = list.indexOf(timeFrame)
+            if (index !== -1) {
+                list.splice(index, 1)
+                return this.db.put(`timeframes`, JSON.stringify(list))
+            }
         }
     }
 

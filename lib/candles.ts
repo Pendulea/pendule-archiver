@@ -58,6 +58,43 @@ export const updateEarliestTimeRecorded = async (db: Level<string, string>, earl
     }
   };
   
+export const deleteTimeFrameCandles = async (db: MyDB, timeFrame: number): Promise<null | Error> => {
+    const label = timeFrameToLabel(timeFrame);
+    if (!(await db.isFullyInitialized())){
+      return new Error(`Database ${db.symbol} is not fully initialized`);
+    }
+  
+    if (timeFrame === MIN_TIME_FRAME){
+      return new Error(`Cannot delete MIN_TIME_FRAME candles, just remove databases`);
+    }
+
+    if (!(await db.getTimeFrameList()).includes(timeFrame)){
+      return null
+    }
+  
+    try {
+      const keysToDelete: string[] = [];
+      for await (const [key, value] of db.db.iterator({ 
+        gte: `${label}:`,
+        lt: `${label};`
+      })) {
+        keysToDelete.push(key);
+      }
+  
+      const batch = db.db.batch();
+      for (const key of keysToDelete) {
+        batch.del(key);
+      }
+  
+      await batch.write();
+      await db.db.del(`p:${timeFrame}:${db.minHistoricalDate}`);
+      return null;
+    } catch (err: any) {
+      console.error('Error deleting candles:', err);
+      return err;
+    }
+}
+
 
 export const storeNewTimeFrameCandles = async (db: MyDB, timeFrame: number): Promise<null | Error> => {
     const minLabel = timeFrameToLabel(MIN_TIME_FRAME);
@@ -83,55 +120,58 @@ export const storeNewTimeFrameCandles = async (db: MyDB, timeFrame: number): Pro
     const newTF = timeFrameToLabel(timeFrame);
     const newTimeFrameSecs = Math.floor(timeFrame / 1000);
     
+    const d1 = new Date(minEarliest * 1000);
+    d1.setDate(d1.getDate() + 1);
+    d1.setHours(0, 0, 0, 0);
+
+
     let t0 = minEarliest;
-    let t1 = t0 + newTimeFrameSecs
+    let t1 = Math.min(t0 + newTimeFrameSecs, Math.floor(d1.getTime() / 1000))
+    console.log(minEarliest, d1.getTime() / 1000, t0, t1)
+
     const tMax = Date.now() / 1000;
   
     const newCandles = new Map<number, ITick>();
     let prevTick: ITick | null = null;
 
+    console.log(`0% : building ${newTF.toUpperCase()} candles for ${db.symbol}`);
     let prevPercent = 0;
     while (t0 < tMax){
       const candles = await getCandlesInDateRange(db.db, minLabel, t0, t1);
       if (candles.size > 0){
-        let firstEntry, lastEntry;
-        const values = candles.values()
-        let entries = candles.entries();
-        // Get the first entry
-        firstEntry = entries.next().value;      
-        // Continue iterating to find the last entry
-        for (let entry of entries) 
-            lastEntry = entry;
-        // If there's only one entry, the first and last are the same
-        lastEntry = lastEntry || firstEntry;
-  
-        const volumesBought = Array.from(candles.values()).map(c => c.volume_bought);
-        const volumesSold = Array.from(candles.values()).map(c => c.volume_sold);
+        const values = Array.from(candles.values())
+
+        const first = values[0];
+        const last = values[values.length - 1];
+
+        const volumesBought = values.map(c => c.volume_bought);
+        const volumesSold = values.map(c => c.volume_sold);
 
         const tick: ITick = {
-          open: prevTick ? prevTick.close : firstEntry[1].open,
-          high: Math.max(...Array.from(values).map(c => c.high)),
-          low: Math.min(...Array.from(values).map(c => c.low)),
-          close: lastEntry[1].c,
+          open: prevTick ? prevTick.close : first.open,
+          high: Math.max(...values.map(c => c.high)),
+          low: Math.min(...values.map(c => c.low)),
+          close: last.close,
           volume_bought: volumesBought.reduce((acc, v) => acc + v, 0),
           volume_sold: volumesSold.reduce((acc, v) => acc + v, 0),
-          trade_count: Array.from(candles.values()).reduce((acc, c) => acc + c.trade_count, 0),
+          trade_count: values.reduce((acc, c) => acc + c.trade_count, 0),
           average_volume_bought: safeAverage(volumesBought),
           average_volume_sold: safeAverage(volumesSold),
 
-          vwap: Array.from(candles.values()).reduce((acc, c) => acc + c.vwap * (c.volume_sold + c.volume_bought), 0) / Array.from(candles.values()).reduce((acc, c) => acc + (c.volume_sold + c.volume_bought), 0), // Corrected VWAP calculation
-          standard_deviation: Math.sqrt(Array.from(candles.values()).reduce((acc, c) => acc + Math.pow(c.close - tick.vwap, 2), 0) / candles.size),
+          vwap: values.reduce((acc, c) => acc + c.vwap * (c.volume_sold + c.volume_bought), 0) / values.reduce((acc, c) => acc + (c.volume_sold + c.volume_bought), 0), // Corrected VWAP calculation
+          standard_deviation: 0,
           median_volume_bought: safeMedian(volumesBought),
           median_volume_sold: safeMedian(volumesSold)
         }
+        tick.standard_deviation = Math.sqrt(values.reduce((acc, c) => acc + Math.pow(c.close - tick.vwap, 2), 0) / candles.size)
         prevTick = tick;
         newCandles.set((t1 * 1000) - 1, tick);
-
       }
       const percent = Math.floor((t1 - minEarliest) / (tMax - minEarliest) * 100)
       if ((percent > prevPercent && percent % 5 === 0) || (t0 === minEarliest)){
         console.log(`${percent}% : building ${newTF.toUpperCase()} candles for ${db.symbol}`);
       }
+      prevPercent = percent;
       t0 = t1;
       t1 = t0 + newTimeFrameSecs;
     }
