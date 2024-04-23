@@ -1,4 +1,4 @@
-import { MyDB } from "./lib/db";
+import { MyDB, engine } from "./lib/db";
 import express, { Request } from 'express';
 import cors from 'cors';
 import morgan from 'morgan'
@@ -34,10 +34,6 @@ app.use(function(req, res, next) {
     next();
 });
 app.use(cors());
-
-process.on('SIGINT', async () => {
-    server.close()
-});
 
 app.get('/pair/:pair/:timeframe', async (req, res) => {
     const date = req.headers.day 
@@ -99,6 +95,14 @@ app.delete('/pair/:pair/:timeframe', async (req, res) => {
     res.sendStatus(200)
 })
 
+process.on('SIGINT', async () => {
+    console.log('Received SIGINT, shutting down...')
+    await new Promise((resolve) => {
+        server.close(() => {
+            resolve(null)
+        })
+    })
+})
 
 const main = async () => {
     init()
