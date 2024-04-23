@@ -3,7 +3,7 @@ import { Level } from 'level'
 import { downloadSymbolArchives } from './archive-downloader'
 import { parseAndStoreZipArchive } from './parse-csv'
 import { DATABASES_PATH } from './constant'
-import { MIN_TIME_FRAME } from './candles'
+import { MIN_TIME_FRAME, storeNewTimeFrameCandles } from './candles'
 
 class queue { 
 
@@ -15,16 +15,29 @@ class queue {
         this.toRun = []
     }
 
+    isQueuingDBTasks = (db: MyDB) => {
+        return this.toRun.some(task => task.db.symbol === db.symbol)
+    }
+
     canStop = () => {
         return this.toRun.length === 0 && !this._isRunning
+    }
+
+    containsTask = (db: MyDB, date: string, timeFrame: number) => {
+        return this.toRun.some(task => task.db.symbol === db.symbol && task.date === date && task.timeFrame === timeFrame)
     }
 
     add = (db: MyDB, date: string, timeFrame: number = MIN_TIME_FRAME) => {
         if (timeFrame % MIN_TIME_FRAME !== 0) {
             throw new Error(`Timeframe must be a multiple of ${MIN_TIME_FRAME}`)
         }
-        this.toRun.push({db, date, timeFrame})
-        this.run()
+        if (timeFrame < MIN_TIME_FRAME){
+            throw new Error(`Timeframe must be greater than ${MIN_TIME_FRAME}`)
+        }
+        if (!this.containsTask(db, date, timeFrame)) {
+            this.toRun.push({db, date, timeFrame})
+            this.run()
+        }
     }
 
     private async run () {
@@ -37,10 +50,18 @@ class queue {
             this._isRunning = false
             return
         }
-        const err = await parseAndStoreZipArchive(first.db, first.date)
-        if (err) {
-            console.error(err)
+        if (!first.timeFrame || first.timeFrame === MIN_TIME_FRAME){
+            const err = await parseAndStoreZipArchive(first.db, first.date)
+            if (err) {
+                console.error(err)
+            }
+        } else {
+            const err = await storeNewTimeFrameCandles(first.db, first.timeFrame)
+            if (err) {
+                console.error(err)
+            }
         }
+
         this._isRunning = false
         this.run()
     }
@@ -59,7 +80,8 @@ process.on('SIGINT', async () => {
 
 export class MyDB {
     public db: Level<string, string>
-    
+    private _isInitializing = false
+
     constructor(public symbol: string, public minHistoricalDate: string) {
         fs.existsSync(DATABASES_PATH) || fs.mkdirSync(DATABASES_PATH, {recursive: true})
         const db = new Level(`${DATABASES_PATH}/${symbol.toLowerCase()}`, { valueEncoding: 'json' })
@@ -79,20 +101,26 @@ export class MyDB {
         }
     }
 
+    isInitializing = () => this._isInitializing || engine.isQueuingDBTasks(this)
+
     isFullyInitialized = (timeFrame: number = MIN_TIME_FRAME) => this.isDateParsed(this.minHistoricalDate, timeFrame)
 
     addTimeFrame = async (timeFrame: number) => {
         if (timeFrame % MIN_TIME_FRAME !== 0) {
-            throw new Error(`Timeframe must be a multiple of ${MIN_TIME_FRAME}`)
+            return new Error(`Timeframe must be a multiple of ${MIN_TIME_FRAME}`)
         }
         if (timeFrame <= MIN_TIME_FRAME){
-            throw new Error(`Timeframe must be greater than ${MIN_TIME_FRAME}`)
+            return new Error(`Timeframe must be greater than ${MIN_TIME_FRAME}`)
         }
         const list = await this.getTimeFrameList()
         if (!list.includes(timeFrame)) {
             list.push(timeFrame)
-            return this.db.put(`timeframes`, JSON.stringify(list))
+            await this.db.put(`timeframes`, JSON.stringify(list))
+            if (!this.isInitializing()){
+                engine.add(this, this.minHistoricalDate, timeFrame)
+            }
         }
+        return null
     }
 
     removeTimeFrame = async (timeFrame: number) => {
@@ -105,9 +133,15 @@ export class MyDB {
     }
 
     init = async () => {
+        this._isInitializing = true
         await downloadSymbolArchives(this, async (date: string) => {
             engine.add(this, date)
         })
+        this._isInitializing = false
+        const timeFrames = await this.getTimeFrameList()
+        for (const timeFrame of timeFrames) {
+            engine.add(this, this.minHistoricalDate, timeFrame)
+        }
     }
 
     public setDateAsParsed = (date: string, timeFrame: number = MIN_TIME_FRAME) => {

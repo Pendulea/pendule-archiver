@@ -61,11 +61,23 @@ export const updateEarliestTimeRecorded = async (db: Level<string, string>, earl
 
 export const storeNewTimeFrameCandles = async (db: MyDB, timeFrame: number): Promise<null | Error> => {
     const minLabel = timeFrameToLabel(MIN_TIME_FRAME);
-    const minEarliest = await getEarliestTimeRecorded(db.db, timeFrameToLabel(MIN_TIME_FRAME));
-    if (!minEarliest) {
-      return null;
+    if (!(await db.isFullyInitialized())){
+      return new Error(`Database ${db.symbol} is not fully initialized`);
+    }
+    
+    if (!(await db.getTimeFrameList()).includes(timeFrame)){
+      return new Error(`Time frame ${timeFrame} not found in ${db.symbol} database`);
+    } 
+
+    if (await db.isDateParsed(db.minHistoricalDate, timeFrame)){
+      return null
     }
 
+    const minEarliest = await getEarliestTimeRecorded(db.db, timeFrameToLabel(MIN_TIME_FRAME));
+    if (!minEarliest) {
+      console.error(`No candles found for ${db.symbol} with time frame ${minLabel}`);
+      process.exit(1);
+    }
 
     //check if the time frame is valid
     const newTF = timeFrameToLabel(timeFrame);
@@ -73,12 +85,13 @@ export const storeNewTimeFrameCandles = async (db: MyDB, timeFrame: number): Pro
     
     let t0 = minEarliest;
     let t1 = t0 + newTimeFrameSecs
+    const tMax = Date.now() / 1000;
   
     const newCandles = new Map<number, ITick>();
     let prevTick: ITick | null = null;
 
-    console.log(`Storing new candles for ${db.symbol} with time frame ${newTF}`);
-    while (t0 < (Date.now() / 1000)){
+    let prevPercent = 0;
+    while (t0 < tMax){
       const candles = await getCandlesInDateRange(db.db, minLabel, t0, t1);
       if (candles.size > 0){
         let firstEntry, lastEntry;
@@ -113,6 +126,11 @@ export const storeNewTimeFrameCandles = async (db: MyDB, timeFrame: number): Pro
         }
         prevTick = tick;
         newCandles.set((t1 * 1000) - 1, tick);
+
+      }
+      const percent = Math.floor((t1 - minEarliest) / (tMax - minEarliest) * 100)
+      if ((percent > prevPercent && percent % 5 === 0) || (t0 === minEarliest)){
+        console.log(`${percent}% : building ${newTF.toUpperCase()} candles for ${db.symbol}`);
       }
       t0 = t1;
       t1 = t0 + newTimeFrameSecs;
