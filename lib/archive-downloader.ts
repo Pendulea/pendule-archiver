@@ -81,7 +81,7 @@ const downloadTree = async (db: MyDB, dAgo: {count: number}, onNewArchiveFound: 
     const { symbol } = db
     while (true){
         if (engine.isShuttingDown()){
-            return {code: SHUTDOWN_CODE}
+            return SHUTDOWN_CODE
         }
         const formattedDate = buildDateStr(dAgo.count);
         if (formattedDate < db.minHistoricalDate){
