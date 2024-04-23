@@ -10,6 +10,7 @@ class queue {
     private _isRunning = false
     private _stop = false
     private _downloadCountParallel = 0
+    private _shutdownCallbacks: (() => void)[] = []
 
 
     toRun: {db: MyDB, date: string, timeFrame?: number}[] = []
@@ -24,9 +25,16 @@ class queue {
 
     countRunningDownloads = () => this._downloadCountParallel
 
+    onShutdown = (cb: () => void) => {
+        this._shutdownCallbacks.push(cb)
+    }
+
     shutdown = () => {
         this.toRun = []
         this._stop = true
+        for (const cb of this._shutdownCallbacks) {
+            cb()
+        }
     }
 
     isShuttingDown = () => this._stop
@@ -88,6 +96,12 @@ export const engine = new queue()
 process.on('SIGINT', async () => {
     engine.shutdown()
     while (!engine.canStop()) {
+        const downloads = engine.countRunningDownloads()
+        if (downloads > 0) {
+            console.log(`Waiting for ${downloads} downloads to finish`)
+        } else{
+            console.log(`Waiting for 1 task to finish`)
+        }
         await new Promise(resolve => setTimeout(resolve, 1000))
     }
 })

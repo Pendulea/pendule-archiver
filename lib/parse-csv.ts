@@ -89,6 +89,7 @@ export const parseAndStoreZipArchive = async (db: MyDB, date: string) => {
   if (r || date < db.minHistoricalDate){
     return null
   }
+  console.log(`Start parsing ${symbol} trades (${date})`)
   const path = `${ARCHIVE_FOLDER}/${symbol}/${symbol}-trades-${date}`;
   const err = unzipFile(`${path}.zip`, `${ARCHIVE_FOLDER}/${symbol}`)
   if (err)
