@@ -9,6 +9,7 @@ import { IncomingMessage, Server, ServerResponse } from "http";
 import { parseAndStoreZipArchive } from "./lib/parse-csv";
 import downloadEngine from "./lib/models/download-engine";
 import processEngine from "./lib/models/process-engine";
+import { kill } from "process";
 
 let Pairs: MyDB[] = []
 
@@ -100,23 +101,28 @@ app.delete('/pair/:pair/:timeframe', async (req, res) => {
 })
 
 process.on('SIGINT', async () => {
+    console.log('clean exit started')
     downloadEngine.shutDown()
     processEngine.shutdown()
     while(true){
         if (!processEngine.hasRunningTask())
             break
-        await new Promise(resolve => setTimeout(resolve, 500))
+        await new Promise(resolve => setTimeout(resolve, 1000))
+        console.log('waiting for tasks to finish')
     }
+    console.log('all tasks done')
     await Promise.allSettled(Pairs.map(pair => {
         return pair.db.close()
     }))
+    console.log('all db closed')
     await new Promise((resolve) => {
         server.close(() => {
             resolve(null)
         })
     })
+    console.log('server closed')
     console.log('clean exit done')
-    process.exit(0)
+    kill(process.pid, 'SIGKILL')
 })
 
 

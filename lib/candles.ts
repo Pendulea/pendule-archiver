@@ -1,6 +1,6 @@
 import { Level } from "level";
 import { MyDB } from "./models/db";
-import { safeAverage, safeMedian, timeFrameToLabel } from "./utils";
+import { accurateHumanize, safeAverage, safeMedian, timeFrameToLabel } from "./utils";
 
 export const MIN_TIME_FRAME = 1_000;
 
@@ -43,7 +43,6 @@ export const updateEarliestTimeRecorded = async (db: Level<string, string>, earl
       // Check if the new time is earlier and update if it is
       if (earliestTime < leastRecorded) {
         await db.put(`${label}:earliest`, earliestTime.toString());
-        // console.log(`Earliest ${label} candle updated to ${earliestTime}`);
       }
       return null; // Return null if successful
     } catch (err: any) {
@@ -51,7 +50,6 @@ export const updateEarliestTimeRecorded = async (db: Level<string, string>, earl
       if (err.message.includes('NotFound')) {
         // If no record exists, create one with the earliestTime
         await db.put(`${label}:earliest`, earliestTime.toString());
-        // console.log(`Earliest ${label} candle set to ${earliestTime}`);
         return null;
       }
       return err; // Return error for further handling if necessary
@@ -132,9 +130,14 @@ export const storeNewTimeFrameCandles = async (db: MyDB, timeFrame: number, onUp
   
     const newCandles = new Map<number, ITick>();
     let prevTick: ITick | null = null;
-
-    console.log(`0% : building ${newTF.toUpperCase()} candles for ${db.symbol}`);
     let prevPercent = 0;
+    let start = Date.now();
+
+    const log = (percent: number) => {
+      const eta = Math.floor((Date.now() - start) * (100 - percent) / percent);
+      console.log(`[TASK ENGINE] ${db.symbol} building candles TIMEFRAME=${newTF.toUpperCase()} PROGRESS=${percent.toFixed(0)}% ETA=${accurateHumanize(eta)}`);
+  }
+
     while (t0 < tMax){
       const candles = await getCandlesInDateRange(db.db, minLabel, t0, t1);
       if (candles.size > 0){
@@ -168,7 +171,7 @@ export const storeNewTimeFrameCandles = async (db: MyDB, timeFrame: number, onUp
       }
       const percent = Math.floor((t1 - minEarliest) / (tMax - minEarliest) * 100)
       if ((percent > prevPercent && percent % 5 === 0) || (t0 === minEarliest)){
-        console.log(`${percent}% : building ${newTF.toUpperCase()} candles for ${db.symbol}`);
+        percent > 0 && log(percent);
         onUpdatePercentage && onUpdatePercentage(Math.min((t1 - minEarliest) / (tMax - minEarliest), 0.99))
       }
       prevPercent = percent;
@@ -244,7 +247,6 @@ export async function storeCandles(db: MyDB, candles: Map<number, ITick>, label:
         const err = await updateEarliestTimeRecorded(db.db, earliest, label);
         if (err) 
             return err;
-        // console.log(`Stored ${candles.size} ${label} candles for ${db.symbol}`);
         return null;
     } catch (err: any) {
         console.error('Failed to store candles:', err);

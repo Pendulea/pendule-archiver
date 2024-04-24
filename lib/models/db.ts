@@ -47,7 +47,7 @@ export class MyDB {
         if (!list.includes(timeFrame)) {
             list.push(timeFrame)
             await this.db.put(`timeframes`, JSON.stringify(list))
-            engine.add(this, this.minHistoricalDate, timeFrame)
+            engine.add(this, this.minHistoricalDate, timeFrame, true)
         }
         return null
     }

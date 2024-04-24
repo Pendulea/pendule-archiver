@@ -3,6 +3,7 @@ import { format, parseISO } from "date-fns"
 import fs from "fs"
 import { InspectablePromise, accurateHumanize, largeBytesToShortString, makeInspectable } from "../utils"
 import moment from "moment"
+import { MAX_NO_RESPONSE_TIMEOUT, MAX_PARALLEL_DOWNLOAD, MIN_INTERVAL_DOWNLOAD_STATUS } from "../constant"
 
 interface IDownload {
     url: string
@@ -23,10 +24,6 @@ type DownloadResult = {
     code: number; // HTTP status code, included in case of error
 };
 
-const MAX_PARALLEL = 1
-const MAX_NO_RESPONSE_TIMEOUT = 10_000
-const MIN_INTERVAL_DOWNLOAD_STATUS = 4_000
-const MAX_WAIT_DOWNLOAD_TIME_BEFORE_KILL = 30_000
 
 class Download {
     private data: IDownload
@@ -102,7 +99,7 @@ class Download {
     printStatus = () => {
         if (this.isDownloading()){
             const eta = this.estimatedTimeLeft()
-            eta > 0 &&  console.log(`${this.id()}: PROGRESS=${this.percentString()}  DOWNLOADED=${largeBytesToShortString(this.downloadedFileSize())}  SPEED=${largeBytesToShortString(this.downloadedFileSize() / (this.downloadTime() / 1000))}/s ETA=${accurateHumanize(eta)}`)
+            eta > 0 &&  console.log(`[DL ENGINE] ${this.id()}: PROGRESS=${this.percentString()}  DOWNLOADED=${largeBytesToShortString(this.downloadedFileSize())}  SPEED=${largeBytesToShortString(this.downloadedFileSize() / (this.downloadTime() / 1000))}/s ETA=${accurateHumanize(eta)}`)
         }
     }
 
@@ -174,7 +171,7 @@ class Download {
         if (this.isPathCached()){
             this.data.end_at = Date.now();
             this.data.result = makeInspectable(new Promise((resolve) => {
-                console.log(`${this.id()}: cached downloaded`)
+                console.log(`[DL ENGINE] ${this.id()}: cached downloaded`)
                 resolve({ status: 'success', message: 'File downloaded successfully.', code: 200 })
                 callback && callback()
                 onDownloaded && onDownloaded()
@@ -194,7 +191,7 @@ class Download {
             });
         } catch (error: any){
             if (error.name === 'AbortError') {
-                console.log('successfully aborted' + this.url())
+                console.log('[DL ENGINE] successfully aborted' + this.url())
             } else {
                 this.data.end_at = Date.now()
                 this.data.last_update = Date.now()
@@ -226,13 +223,13 @@ class Download {
                 this.data.end_at = Date.now();
                 this.data.last_update = Date.now();
 
-                console.log(`${this.id()} downloaded in ${accurateHumanize(this.downloadTime())}`)
+                console.log(`[DL ENGINE] ${this.id()} downloaded in ${accurateHumanize(this.downloadTime())}`)
                 resolve({ status: 'success', message: 'File downloaded successfully.', code: 200 })
                 callback && callback()
                 onDownloaded && onDownloaded()
             });
             writer.on('error', (e) => {
-                console.log(e)
+                console.log('[DL ENGINE]', e)
                 resolve({ status: 'error', message: 'Error writing file.', code: 500 })
             });
         }))
@@ -269,7 +266,7 @@ export class DownloadEngine {
     }
 
     printStatus = () => {
-        console.log(`DOWNLOADS ENGINE : TOTAL=${this.downloads.length} BLANK=${this.downloads.filter(d => d.isBlank()).length} DOWNLOADING=${this.downloads.filter(d => d.isDownloading()).length} DOWNLOADED=${this._countDownloaded} PAUSED=${this._pauseUntil > Date.now() ? 'YES' : 'NO'}`)
+        console.log(`[DL ENGINE] STATUS | TOTAL=${this.downloads.length} BLANK=${this.downloads.filter(d => d.isBlank()).length} DOWNLOADING=${this.downloads.filter(d => d.isDownloading()).length} DOWNLOADED=${this._countDownloaded} PAUSED=${this._pauseUntil > Date.now() ? 'YES' : 'NO'}`)
         this.downloads.forEach(d => d.printStatus())
     }
 
@@ -279,6 +276,7 @@ export class DownloadEngine {
         this.downloads = []
         clearTimeout(this._pauseTimeout)
         clearInterval(_interval)
+        console.log(`[DL ENGINE] Shutting down...`)
     }
 
     pause = (seconds: number) => {
@@ -320,7 +318,7 @@ export class DownloadEngine {
                     this.pause(60)
                 } 
                 else {
-                    console.error(`Error downloading ${d.url()}: ${message}`)
+                    console.error('[DL ENGINE]', `Error downloading ${d.url()}: ${message}`)
                     this.remove(d.url(), true)
                     this.pause(30)                    
                 }
@@ -333,7 +331,7 @@ export class DownloadEngine {
             return
         }
         const dlOnes = this.downloads.filter(d => d.isDownloading())
-        if (dlOnes.length >= MAX_PARALLEL){
+        if (dlOnes.length >= MAX_PARALLEL_DOWNLOAD){
             return
         }
 

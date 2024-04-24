@@ -75,13 +75,14 @@ class Engine {
     constructor(){
         _interval = setInterval(() => {
             this.run()
-        }, 3000)
+        }, 5000)
     }
 
     shutdown = () => {
         if (_interval){
             clearInterval(_interval)
         }
+        console.log(`[TASK ENGINE] Shutting down...`)
     }
 
     hasRunningTask = () => {
@@ -92,7 +93,7 @@ class Engine {
         return this.tasks.some(task => task.db().symbol === db.symbol && task.date() === date && task.timeFrame() === timeFrame)
     }
 
-    add = (db: MyDB, date: string, timeFrame: number = MIN_TIME_FRAME) => {
+    add = (db: MyDB, date: string, timeFrame: number = MIN_TIME_FRAME, priority?: boolean) => {
         if (timeFrame % MIN_TIME_FRAME !== 0) {
             throw new Error(`Timeframe must be a multiple of ${MIN_TIME_FRAME}`)
         }
@@ -101,7 +102,11 @@ class Engine {
         }
         if (!this.containsTask(db, date, timeFrame)) {
             const task = new Task(db, date, timeFrame)
-            // this.tasks.push(task)
+            if (!priority){
+                this.tasks.push(task)                
+            } else {
+                this.tasks.unshift(task)
+            }
         }
     }
 

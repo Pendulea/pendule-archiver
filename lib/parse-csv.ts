@@ -93,7 +93,7 @@ export const parseAndStoreZipArchive = async (db: MyDB, date: string, onUpdatePe
     return error as Error
   }
 
-  console.log(`Start parsing ${symbol} trades (${date})`)
+  console.log(`[TASK ENGINE] start parsing ${symbol} trades (${date})`)
   const path = `${ARCHIVE_FOLDER}/${symbol}/${symbol}-trades-${date}`;
   try {
     const err = unzipFile(`${path}.zip`, `${ARCHIVE_FOLDER}/${symbol}`)
@@ -160,7 +160,7 @@ export const parseAndStoreZipArchive = async (db: MyDB, date: string, onUpdatePe
         const percentDone = Math.floor((totalTradeHandled / countLines) * 100)
         onUpdatePercentage && onUpdatePercentage(totalTradeHandled / countLines)
         const remainingTime = (Date.now() - startProcessTime) / totalTradeHandled * (countLines - totalTradeHandled)
-        console.log(`${db.symbol} (${date}): PERCENT=${percentDone}%  PARSED=${largeNumberToShortString(countCandlesStored)} candles   SPEED=${largeNumberToShortString(totalTradeHandled / ((Date.now() - startProcessTime) / 1000))} trades/s   ETA=${moment.duration(remainingTime).humanize()}`)
+        console.log(`[TASK ENGINE] ${db.symbol} (${date}) building candles TIMEFRAME=1s PERCENT=${percentDone}%  PARSED=${largeNumberToShortString(countCandlesStored)} candles   SPEED=${largeNumberToShortString(totalTradeHandled / ((Date.now() - startProcessTime) / 1000))} trades/s   ETA=${moment.duration(remainingTime).humanize()}`)
         parser.resume()
       } else {
         trades.push(trade)
@@ -178,7 +178,7 @@ export const parseAndStoreZipArchive = async (db: MyDB, date: string, onUpdatePe
       fs.unlink(`${path}.csv`, () => null);
       const countTotalTrade = (IMPORT_TRADE_BATCH_SIZE * countBatch) + trades.length;
 
-      console.log(`${db.symbol} (${date}): Successfully parsed ${largeNumberToShortString(countTotalTrade)} trades into ${largeNumberToShortString(countCandlesStored)} candles`)
+      console.log(`[TASK ENGINE] ${db.symbol} (${date}): Successfully parsed ${largeNumberToShortString(countTotalTrade)} trades into ${largeNumberToShortString(countCandlesStored)} 1s candles`)
       resolve(null)
     })
     .on('error', (error) => {
