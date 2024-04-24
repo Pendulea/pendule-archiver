@@ -127,7 +127,6 @@ export const storeNewTimeFrameCandles = async (db: MyDB, timeFrame: number): Pro
 
     let t0 = minEarliest;
     let t1 = Math.min(t0 + newTimeFrameSecs, Math.floor(d1.getTime() / 1000))
-    console.log(minEarliest, d1.getTime() / 1000, t0, t1)
 
     const tMax = Date.now() / 1000;
   

@@ -76,7 +76,6 @@ export async function downloadArchive(date: string, symbol: string, folderPath: 
     return r.code
 }
 
-
 const downloadTree = async (db: MyDB, dAgo: {count: number}, onNewArchiveFound: (date: string) => void) => {
     const { symbol } = db
     while (true){
@@ -152,8 +151,14 @@ export const downloadSymbolArchives = async (db: MyDB, onNewArchiveFound: (date:
                 break
             }
             if (status === 404){
-                console.log(`No more archives to download (${db.symbol})`)
-                break
+                const fullySinc = await db.isFullyInitialized()
+                if (fullySinc){
+                    console.log(`No more archives to download (${db.symbol})`)
+                    break
+                } else {
+                    dAgo.count++
+                    continue
+                }
             }
             if (status === 429){
                 console.log(`Rate limit reached. Waiting 1 minute... (${db.symbol})`)

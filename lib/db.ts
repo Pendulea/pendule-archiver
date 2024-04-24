@@ -104,9 +104,8 @@ process.on('SIGINT', async () => {
         }
         await new Promise(resolve => setTimeout(resolve, 1000))
     }
+
 })
-
-
 
 export class MyDB {
     public db: Level<string, string>
@@ -114,8 +113,7 @@ export class MyDB {
 
     constructor(public symbol: string, public minHistoricalDate: string) {
         fs.existsSync(DATABASES_PATH) || fs.mkdirSync(DATABASES_PATH, {recursive: true})
-        const db = new Level(`${DATABASES_PATH}/${symbol.toLowerCase()}`, { valueEncoding: 'json' })
-        this.db = db
+        this.db = new Level(`${DATABASES_PATH}/${symbol.toLowerCase()}`, { valueEncoding: 'json' })
     }
 
     getTimeFrameList = async () => {

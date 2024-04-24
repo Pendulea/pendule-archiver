@@ -97,6 +97,9 @@ app.delete('/pair/:pair/:timeframe', async (req, res) => {
 
 process.on('SIGINT', async () => {
     console.log('Received SIGINT, shutting down...')
+    await Promise.allSettled(Pairs.map(pair => {
+        return pair.db.close()
+    }))
     await new Promise((resolve) => {
         server.close(() => {
             resolve(null)
