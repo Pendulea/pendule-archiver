@@ -1,11 +1,11 @@
 import fs from 'fs';
-import { parse } from 'csv-parse/sync'; // Ensure this is correctly imported
-
+import { parse } from 'csv-parse'; // Ensure this is correctly imported
+import moment from 'moment'
 import AdmZip from 'adm-zip'
 import { ITick, MIN_TIME_FRAME, storeCandles } from './candles';
-import { MyDB } from './db';
-import { safeAverage, safeMedian, timeFrameToLabel } from './utils';
-import { ARCHIVE_FOLDER } from './constant';
+import { MyDB } from './models/db';
+import { countNewlines, largeNumberToShortString, safeAverage, safeMedian, timeFrameToLabel } from './utils';
+import { ARCHIVE_FOLDER, IMPORT_TRADE_BATCH_SIZE } from './constant';
 
 interface ITrade {
   tradeId: number;
@@ -83,49 +83,107 @@ function unzipFile(zipPath: string, outputPath: string): null | Error{
     }
 }
 
-export const parseAndStoreZipArchive = async (db: MyDB, date: string) => {
+export const parseAndStoreZipArchive = async (db: MyDB, date: string, onUpdatePercentage?: (percent: number) => void): Promise<null | Error> => {
   const { symbol } = db
-  const r = await db.isDateParsed(date)
-  if (r || date < db.minHistoricalDate){
-    return null
+  try {
+    const r = await db.isDateParsed(date)
+    if (r || date < db.minHistoricalDate)
+      return null
+  } catch (error) {
+    return error as Error
   }
+
   console.log(`Start parsing ${symbol} trades (${date})`)
   const path = `${ARCHIVE_FOLDER}/${symbol}/${symbol}-trades-${date}`;
-  const err = unzipFile(`${path}.zip`, `${ARCHIVE_FOLDER}/${symbol}`)
-  if (err)
-    return err
   try {
-    const fileContent = fs.readFileSync(`${path}.csv`, 'utf-8');
-    const records: ITrade[] = parse(fileContent, {
-      delimiter: ',',
-      columns: ['tradeId', 'price', 'quantity', 'total', 'timestamp', 'isBuyerMaker', 'isBestMatch'],
-      skip_empty_lines: true,
-      from_line: 1,
-      cast: (value, context) => {
-        switch (context.column) {
-          case 'tradeId': return parseInt(value);
-          case 'price': return parseFloat(value);
-          case 'quantity': return parseFloat(value);
-          case 'total': return parseFloat(value);
-          case 'timestamp': return parseInt(value);
-          case 'isBuyerMaker': return value === 'True';
-          case 'isBestMatch': return value === 'True';
-          default: return value;
-        }
-      }
-  })
-    fs.unlink(`${path}.csv`, () => null);
-
-    const candles = aggregateTradesToCandles(records, MIN_TIME_FRAME);
-    const err = await storeCandles(db, candles, timeFrameToLabel(MIN_TIME_FRAME));
-    if (err) 
+    const err = unzipFile(`${path}.zip`, `${ARCHIVE_FOLDER}/${symbol}`)
+    if (err)
       return err
-
-    await db.setDateAsParsed(date)
-    console.log(`Parsed ${records.length.toLocaleString()} trades into ${candles.size.toLocaleString()} candles for ${symbol} (${date})`)
-    return null
   } catch (error) {
-    console.error('Failed to parse CSV:', error);
     return error as Error
-  };
-};
+  }
+
+  let countLines = 0
+  let input: fs.ReadStream
+  try {
+    countLines = await countNewlines(`${path}.csv`)
+    input = fs.createReadStream(`${path}.csv`, {
+      encoding: 'utf8',
+      highWaterMark: 1024 * 1024
+  });
+  } catch (error) {
+    return error as Error
+  }
+
+  const parser = parse({
+    delimiter: ',',
+    columns: ['tradeId', 'price', 'quantity', 'total', 'timestamp', 'isBuyerMaker', 'isBestMatch'],
+    skip_empty_lines: true,
+    from_line: 1,
+    cast: (value, context) => {
+      switch (context.column) {
+        case 'tradeId': return parseInt(value);
+        case 'price': return parseFloat(value);
+        case 'quantity': return parseFloat(value);
+        case 'total': return parseFloat(value);
+        case 'timestamp': return parseInt(value);
+        case 'isBuyerMaker': return value === 'True';
+        case 'isBestMatch': return value === 'True';
+        default: return value;
+      }
+    }
+  })
+
+  let countBatch = 0;
+  let countCandlesStored = 0;
+  let startProcessTime = Date.now();
+
+  return new Promise(async (resolve, reject) => {
+    let trades: ITrade[] = []
+    let prevTimeBucket = 0;
+
+    input.pipe(parser).on('data', async (trade: ITrade) => {
+      const timeBucket = (trades.length + 1000) >= IMPORT_TRADE_BATCH_SIZE ? Math.floor(trade.timestamp / MIN_TIME_FRAME) * MIN_TIME_FRAME : 0;
+      if (trades.length >= IMPORT_TRADE_BATCH_SIZE && timeBucket !== prevTimeBucket){
+        parser.pause()
+        const candles = aggregateTradesToCandles(trades, MIN_TIME_FRAME);
+        const err = await storeCandles(db, candles, timeFrameToLabel(MIN_TIME_FRAME));
+        if (err){
+          err && resolve(err);
+          return
+        }
+        trades = [trade];
+
+        countCandlesStored += candles.size;
+        countBatch++
+        const totalTradeHandled = IMPORT_TRADE_BATCH_SIZE * countBatch
+        const percentDone = Math.floor((totalTradeHandled / countLines) * 100)
+        onUpdatePercentage && onUpdatePercentage(totalTradeHandled / countLines)
+        const remainingTime = (Date.now() - startProcessTime) / totalTradeHandled * (countLines - totalTradeHandled)
+        console.log(`${db.symbol} (${date}): PERCENT=${percentDone}%  PARSED=${largeNumberToShortString(countCandlesStored)} candles   SPEED=${largeNumberToShortString(totalTradeHandled / ((Date.now() - startProcessTime) / 1000))} trades/s   ETA=${moment.duration(remainingTime).humanize()}`)
+        parser.resume()
+      } else {
+        trades.push(trade)
+      }
+      prevTimeBucket = timeBucket;
+
+    }).on('end', async () => {
+      if (trades.length > 0){
+        const candles = aggregateTradesToCandles(trades, MIN_TIME_FRAME);
+        const err = await storeCandles(db, candles, timeFrameToLabel(MIN_TIME_FRAME));
+        err && resolve(err);
+        countCandlesStored += candles.size;
+      }
+      await db.setDateAsParsed(date)
+      fs.unlink(`${path}.csv`, () => null);
+      const countTotalTrade = (IMPORT_TRADE_BATCH_SIZE * countBatch) + trades.length;
+
+      console.log(`${db.symbol} (${date}): Successfully parsed ${largeNumberToShortString(countTotalTrade)} trades into ${largeNumberToShortString(countCandlesStored)} candles`)
+      resolve(null)
+    })
+    .on('error', (error) => {
+      fs.unlink(`${path}.csv`, () => null);
+      resolve(error as Error)
+    });
+  })
+}

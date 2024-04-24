@@ -1,5 +1,5 @@
 import { Level } from "level";
-import { MyDB } from "./db";
+import { MyDB } from "./models/db";
 import { safeAverage, safeMedian, timeFrameToLabel } from "./utils";
 
 export const MIN_TIME_FRAME = 1_000;
@@ -96,7 +96,7 @@ export const deleteTimeFrameCandles = async (db: MyDB, timeFrame: number): Promi
 }
 
 
-export const storeNewTimeFrameCandles = async (db: MyDB, timeFrame: number): Promise<null | Error> => {
+export const storeNewTimeFrameCandles = async (db: MyDB, timeFrame: number, onUpdatePercentage?: (p: number) => void): Promise<null | Error> => {
     const minLabel = timeFrameToLabel(MIN_TIME_FRAME);
     if (!(await db.isFullyInitialized())){
       return new Error(`Database ${db.symbol} is not fully initialized`);
@@ -169,6 +169,7 @@ export const storeNewTimeFrameCandles = async (db: MyDB, timeFrame: number): Pro
       const percent = Math.floor((t1 - minEarliest) / (tMax - minEarliest) * 100)
       if ((percent > prevPercent && percent % 5 === 0) || (t0 === minEarliest)){
         console.log(`${percent}% : building ${newTF.toUpperCase()} candles for ${db.symbol}`);
+        onUpdatePercentage && onUpdatePercentage(Math.min((t1 - minEarliest) / (tMax - minEarliest), 0.99))
       }
       prevPercent = percent;
       t0 = t1;
@@ -236,8 +237,7 @@ export async function storeCandles(db: MyDB, candles: Map<number, ITick>, label:
         for (const [time, value] of candles.entries()) {
             const timeInSeconds = Math.floor(time / 1000);
             batch.put(`${label}:${timeInSeconds}`, stringifyTick(value)); // Add to batch
-            if (timeInSeconds < earliest) 
-                earliest = timeInSeconds;
+            earliest = Math.min(timeInSeconds, earliest)
         }
   
         await batch.write(); // Execute all batched operations

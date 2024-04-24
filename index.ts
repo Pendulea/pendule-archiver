@@ -1,4 +1,4 @@
-import { MyDB, engine } from "./lib/db";
+import { MyDB } from "./lib/models/db";
 import express, { Request } from 'express';
 import cors from 'cors';
 import morgan from 'morgan'
@@ -6,14 +6,18 @@ import { getCandlesInDateRange } from "./lib/candles";
 import { strDateToDate, tickMapToJSONArray } from "./lib/utils";
 import PAIRS from "./pairs.json";
 import { IncomingMessage, Server, ServerResponse } from "http";
+import { parseAndStoreZipArchive } from "./lib/parse-csv";
+import downloadEngine from "./lib/models/download-engine";
+import processEngine from "./lib/models/process-engine";
 
 let Pairs: MyDB[] = []
 
 const init = async () => {
     Pairs = PAIRS.map(pair => new MyDB(pair.symbol, pair.min_historical_day))
-    for (const pair of Pairs) {
-        await pair.init()
-    }
+    // const p = Pairs.find(p => p.symbol === 'BTCUSDT')
+    // if (p){
+    //     await parseAndStoreZipArchive(p, `2023-03-21`)
+    // }
 }
 
 const app = express();
@@ -96,7 +100,13 @@ app.delete('/pair/:pair/:timeframe', async (req, res) => {
 })
 
 process.on('SIGINT', async () => {
-    console.log('Received SIGINT, shutting down...')
+    downloadEngine.shutDown()
+    processEngine.shutdown()
+    while(true){
+        if (!processEngine.hasRunningTask())
+            break
+        await new Promise(resolve => setTimeout(resolve, 500))
+    }
     await Promise.allSettled(Pairs.map(pair => {
         return pair.db.close()
     }))
@@ -105,9 +115,12 @@ process.on('SIGINT', async () => {
             resolve(null)
         })
     })
+    console.log('clean exit done')
+    process.exit(0)
 })
 
-const main = async () => {
+
+const main = async () => {    
     init()
     server = app.listen({
         port: 8080,

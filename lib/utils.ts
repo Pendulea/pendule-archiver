@@ -1,7 +1,8 @@
 import { ITick, MIN_TIME_FRAME } from "./candles";
 import { readdir } from 'fs/promises';
 import { format } from 'date-fns';
-
+import fs from'fs'
+import moment from "moment";
 
 export const safeMedian = (values: number[]) => {
     if (values.length === 0) return 0;
@@ -63,6 +64,10 @@ export const timeFrameToLabel = (timeFrame: number): string => {
     return label
 }
 
+export function getFileSize(filePath: string) {
+  return fs.statSync(filePath).size
+}
+
 export const strDateToDate = (d: string) => {
     const date = new Date(d + "T00:00:00Z");
     // Return the UTC timestamp
@@ -93,4 +98,90 @@ export async function sortFolderFiles(folderPath: string): Promise<string[]> {
         console.error('Failed to read or sort files:', error);
         return [];
     }
+}
+
+export function countNewlines(filePath: string): Promise<number> {
+  return new Promise((resolve, reject) => {
+      let lineCount = 0;
+      const stream = fs.createReadStream(filePath, { encoding: 'utf8', highWaterMark: 1024 * 1024});
+
+      stream.on('data', (chunk: string) => {
+          // Count the newlines in the current chunk
+          lineCount += (chunk.match(/\n/g) || []).length;
+      });
+
+      stream.on('end', () => {
+          resolve(lineCount);
+      });
+
+      stream.on('error', (err) => {
+          reject(err);
+      });
+  });
+}
+
+export const largeBytesToShortString = (b: number) => {
+    if (b >= 1_000_000_000) {
+        return (b / 1_000_000_000).toFixed(2) + 'GB';
+    }
+    if (b >= 1_000_000) {
+        return (b / 1_000_000).toFixed(1) + 'MB';
+    }
+    if (b >= 1_000) {
+        return (b / 1_000).toFixed(0) + 'KB';
+    }
+    return b.toString() + 'B';
+}
+
+export const largeNumberToShortString = (n: number) => {
+    if (n >= 1_000_000_000) {
+        return (n / 1_000_000_000).toFixed(2) + 'B';
+    }
+    if (n >= 1_000_000) {
+        return (n / 1_000_000).toFixed(1) + 'M';
+    }
+    if (n >= 1_000) {
+        return (n / 1_000).toFixed(0) + 'K';
+    }
+    return n.toString();
+}
+
+export interface InspectablePromise<T> extends Promise<T> {
+    isFulfilled: () => boolean;
+    isRejected: () => boolean;
+    isSettled: () => boolean;
+    onFulfilled: () => void;
+}
+
+export function makeInspectable<T>(promise: Promise<T>): InspectablePromise<T> {
+    let isFulfilled = false;
+    let isRejected = false;
+
+    const wrappedPromise = promise.then(
+        (value: T) => {
+            isFulfilled = true;
+            return value;
+        },
+        (error: any) => {
+            isRejected = true;
+            throw error;
+        }
+    ) as InspectablePromise<T>;
+
+    wrappedPromise.isFulfilled = () => isFulfilled;
+    wrappedPromise.isRejected = () => isRejected;
+    wrappedPromise.isSettled = () => isFulfilled || isRejected;
+
+    return wrappedPromise;
+}
+
+
+export const accurateHumanize = (ms: number) => {
+    if (ms < 1000) {
+        return `${ms.toFixed(0)}ms`;
+    }
+    if (ms < 40_000) {
+        return `${(ms / 1000).toFixed(1)}s`;
+    }
+    return moment.duration(ms).humanize();
 }
