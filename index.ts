@@ -12,7 +12,15 @@ process.on('SIGINT', async () => {
     logger.info('clean exit started')
     downloadEngine.shutDown()
     await Promise.allSettled(Pairs.map(pair => {
-        return pair.db.close()
+        return new Promise((resolve, reject) => {
+            pair.db.close((err) => {
+                if (err) {
+                    reject(err)
+                } else {
+                    resolve(undefined)
+                }
+            })
+        })
     }))
     logger.info('clean exit done')
     process.exit(0)
@@ -66,6 +74,7 @@ const main = async () => {
             count: Pairs.length
         })
     } catch (error) {
+        console.log(error)
         logger.error('pairs.json file is not a valid json file')
         process.exit(0)
     }
