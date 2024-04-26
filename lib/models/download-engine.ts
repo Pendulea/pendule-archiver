@@ -1,8 +1,7 @@
 import axios, { AxiosResponse } from "axios"
 import { format, parseISO } from "date-fns"
 import fs from "fs"
-import { InspectablePromise, accurateHumanize, largeBytesToShortString, makeInspectable } from "../utils"
-import moment from "moment"
+import { InspectablePromise, accurateHumanize, largeBytesToShortString, logger, makeInspectable } from "../utils"
 import { MAX_NO_RESPONSE_TIMEOUT, MAX_PARALLEL_DOWNLOAD, MIN_INTERVAL_DOWNLOAD_STATUS } from "../constant"
 
 interface IDownload {
@@ -99,7 +98,14 @@ class Download {
     printStatus = () => {
         if (this.isDownloading()){
             const eta = this.estimatedTimeLeft()
-            eta > 0 &&  console.log(`[DL ENGINE] ${this.id()}: PROGRESS=${this.percentString()}  DOWNLOADED=${largeBytesToShortString(this.downloadedFileSize())}  SPEED=${largeBytesToShortString(this.downloadedFileSize() / (this.downloadTime() / 1000))}/s ETA=${accurateHumanize(eta)}`)
+            if (eta){
+                logger.log('info', `downloading ${this.id()}`, {
+                    progress: this.percentString(),
+                    downloaded: largeBytesToShortString(this.downloadedFileSize()),
+                    speed: largeBytesToShortString(this.downloadedFileSize() / (this.downloadTime() / 1000)),
+                    eta: accurateHumanize(eta)
+                })
+            }
         }
     }
 
@@ -171,7 +177,6 @@ class Download {
         if (this.isPathCached()){
             this.data.end_at = Date.now();
             this.data.result = makeInspectable(new Promise((resolve) => {
-                console.log(`[DL ENGINE] ${this.id()}: cached downloaded`)
                 resolve({ status: 'success', message: 'File downloaded successfully.', code: 200 })
                 callback && callback()
                 onDownloaded && onDownloaded()
@@ -191,7 +196,7 @@ class Download {
             });
         } catch (error: any){
             if (error.name === 'AbortError') {
-                console.log('[DL ENGINE] successfully aborted' + this.url())
+                logger.log('info', `successfully aborted ${this.id()}`)
             } else {
                 this.data.end_at = Date.now()
                 this.data.last_update = Date.now()
@@ -223,13 +228,17 @@ class Download {
                 this.data.end_at = Date.now();
                 this.data.last_update = Date.now();
 
-                console.log(`[DL ENGINE] ${this.id()} downloaded in ${accurateHumanize(this.downloadTime())}`)
+                logger.log('info', `downloaded ${this.id()}`, {
+                    time: accurateHumanize(this.downloadTime()),
+                })
                 resolve({ status: 'success', message: 'File downloaded successfully.', code: 200 })
                 callback && callback()
                 onDownloaded && onDownloaded()
             });
             writer.on('error', (e) => {
-                console.log('[DL ENGINE]', e)
+                logger.log('error', `error downloading ${this.id()}`, {
+                    error: JSON.stringify(e)
+                })
                 resolve({ status: 'error', message: 'Error writing file.', code: 500 })
             });
         }))
@@ -266,8 +275,13 @@ export class DownloadEngine {
     }
 
     printStatus = () => {
-        console.log(`[DL ENGINE] STATUS | TOTAL=${this.downloads.length} BLANK=${this.downloads.filter(d => d.isBlank()).length} DOWNLOADING=${this.downloads.filter(d => d.isDownloading()).length} DOWNLOADED=${this._countDownloaded} PAUSED=${this._pauseUntil > Date.now() ? 'YES' : 'NO'}`)
-        this.downloads.forEach(d => d.printStatus())
+        logger.log('info', 'status', {
+            total: this.downloads.length,
+            blank: this.downloads.filter(d => d.isBlank()).length,
+            downloading: this.downloads.filter(d => d.isDownloading()).length,
+            downloaded: this._countDownloaded,
+            paused: this._pauseUntil > Date.now()
+        })
     }
 
 
@@ -276,7 +290,7 @@ export class DownloadEngine {
         this.downloads = []
         clearTimeout(this._pauseTimeout)
         clearInterval(_interval)
-        console.log(`[DL ENGINE] Shutting down...`)
+        logger.log('info', 'shutting down download engine...')
     }
 
     pause = (seconds: number) => {

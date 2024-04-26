@@ -1,29 +1,27 @@
-import { ITick, MIN_TIME_FRAME } from "./candles";
 import { readdir } from 'fs/promises';
 import { format } from 'date-fns';
 import fs from'fs'
 import moment from "moment";
+import { MIN_TIME_FRAME } from './constant';
+import winston from 'winston';
 
-export const safeMedian = (values: number[]) => {
-    if (values.length === 0) return 0;
-    const sorted = values.sort((a, b) => a - b);
-    const mid = Math.floor(sorted.length / 2);
-    return sorted.length % 2 !== 0 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
-  };
-  
-export const safeAverage = (values: number[]) => values.reduce((acc, cur) => acc + cur, 0) / (values.length || 1);
-  
-
-export const tickMapToJSONArray = (map: Map<number, ITick>) => {
-    const arr: (ITick & { time: number })[] = []
-    for (let [key, value] of map) {
-        arr.push({
-            ...value,
-            time: key
+export const logger = winston.createLogger({
+    level: 'info',
+    format: winston.format.combine(
+        winston.format.timestamp({
+            format: 'YYYY-MM-DD HH:mm:ss'
+        }),
+        winston.format.printf(info => {
+            const { timestamp, level, message, ...extra } = info;
+            return `${timestamp} [${level}]: ${message} ${Object.keys(extra).map(key => `${key}: ${extra[key]}`).join(', ')}`;
         })
-    }
-    return arr
-}
+    ),
+    transports: [
+        new winston.transports.Console(),
+        new winston.transports.File({ filename: 'logs.log' })
+    ]
+});
+
 
 export function extractDateFromTradeZipFile(filename: string): string | null {
     // Regular expression to match the date in the filename
@@ -180,7 +178,7 @@ export const accurateHumanize = (ms: number) => {
     if (ms < 1000) {
         return `${ms.toFixed(0)}ms`;
     }
-    if (ms < 40_000) {
+    if (ms < 60_000) {
         return `${(ms / 1000).toFixed(1)}s`;
     }
     return moment.duration(ms).humanize();
