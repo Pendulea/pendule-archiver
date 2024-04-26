@@ -1,8 +1,8 @@
+require('dotenv').config();
+
 import { MyDB } from "./lib/models/db";
 import downloadEngine from "./lib/models/download-engine";
 import { logger } from "./lib/utils";
-import yargs from 'yargs'
-import { hideBin } from 'yargs/helpers'
 import fs from 'fs'
 import path from "path";
 
@@ -20,52 +20,39 @@ process.on('SIGINT', async () => {
 
 
 const main = async () => {    
-    const argv = yargs(hideBin(process.argv))
-        .option('pairs_path', {
-            alias: 'pairs',
-            type: 'string',
-            description: 'Path to the pairs.json file',
-            default: './pairs.json',
-        })
-        .option('archive_path', {
-            alias: 'archive',
-            type: 'string',
-            description: 'Directory path for archives',
-        })
-        .option('database_path', {
-            alias: 'db',
-            type: 'string',
-            description: 'Path to the database directory',
-        })
-        .argv; // Use .argv directly to get the parsed arguments
 
-    if (!argv.archive_path || !fs.existsSync(argv.archive_path)) {
-        logger.error('archive path not found')
+    const PAIRS_PATH = process.env.PAIRS_PATH || ''
+    const ARCHIVES_DIR = process.env.ARCHIVES_DIR || ''
+    const DATABASES_DIR = process.env.DATABASES_DIR || ''
+
+
+    if (!ARCHIVES_DIR || !fs.existsSync(ARCHIVES_DIR)) {
+        logger.error('archives directory not found')
         process.exit(0)
     } else {
-        logger.info('archive folder set', {
-            path: argv.archive_path
+        logger.info('archives directory set', {
+            path: ARCHIVES_DIR
         })
-        global.ARCHIVE_DIR = path.join(argv.archive_path);
+        global.ARCHIVE_DIR = path.join(ARCHIVES_DIR);
     }
-    if (!argv.database_path || !fs.existsSync(argv.database_path)) {
-        logger.error('database path not found')
+    if (!DATABASES_DIR || !fs.existsSync(DATABASES_DIR)) {
+        logger.error('databases directory not found')
         process.exit(0)
     } else {
-        logger.info('database folder set', {
-            path: argv.database_path
+        logger.info('databases directory set', {
+            path: DATABASES_DIR
         })
-        global.DB_DIR = path.join(argv.database_path);
+        global.DB_DIR = path.join(DATABASES_DIR);
     }
 
 
     //check if valid json file
     try {
-        if (!fs.existsSync(argv.pairs_path)) {
+        if (!fs.existsSync(PAIRS_PATH)) {
             logger.error('pairs.json file not found')
             process.exit(0)
         }
-        const data = fs.readFileSync(argv.pairs_path, 'utf8')
+        const data = fs.readFileSync(PAIRS_PATH, 'utf8')
         Pairs = JSON.parse(data).map(pair => {
             if (pair.symbol && pair.min_historical_day) {
                 return new MyDB(pair.symbol, pair.min_historical_day)
@@ -75,7 +62,7 @@ const main = async () => {
             }
         })
         logger.info('pairs.json file loaded', {
-            path: argv.pairs_path,
+            path: PAIRS_PATH,
             count: Pairs.length
         })
     } catch (error) {
