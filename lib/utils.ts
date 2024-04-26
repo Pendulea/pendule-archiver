@@ -4,21 +4,52 @@ import fs from'fs'
 import moment from "moment";
 import { MIN_TIME_FRAME } from './constant';
 import winston from 'winston';
+import colorette, { Color, green, blue, magenta, cyan, gray, whiteBright, yellow } from 'colorette';
+
+
+function hashCode(str: string) {
+    let hash = 0;
+    for (let i = 0; i < str.length; i++) {
+        const char = str.charCodeAt(i);
+        hash = ((hash << 5) - hash) + char;
+        hash |= 0; // Convert to 32bit integer
+    }
+    return hash;
+}
+
+const COLOR_LIST = [
+    green, blue, magenta, cyan, yellow
+]
+
+function getColor(key: string, colors: Color[]): Color {
+    const index = Math.abs(hashCode(key)) % colors.length
+    return colors[index];
+}
+
 
 export const logger = winston.createLogger({
     level: 'info',
     format: winston.format.combine(
+        winston.format.colorize(),
         winston.format.timestamp({
             format: 'YYYY-MM-DD HH:mm:ss'
         }),
-        winston.format.printf(info => {
+        winston.format.printf((info) => {
             const { timestamp, level, message, ...extra } = info;
-            return `${timestamp} [${level}]: ${message} ${Object.keys(extra).map(key => `${key}: ${extra[key]}`).join(', ')}`;
+            let colorList = COLOR_LIST.slice()
+            const extraDetails = Object.keys(extra).map(key => {
+
+                const valueColor = getColor(key, colorList);
+                colorList = colorList.filter(c => c !== valueColor)
+
+                return `${valueColor(key + '')}: ${valueColor(extra[key] + '')}`;
+            }).join(', ');
+            return `${gray(timestamp)} [${level}]: ${whiteBright(message)} ${extraDetails}`;
         })
     ),
     transports: [
         new winston.transports.Console(),
-        new winston.transports.File({ filename: 'logs.log' })
+        // new winston.transports.File({ filename: 'logs.log' })
     ]
 });
 

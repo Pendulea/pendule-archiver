@@ -101,7 +101,8 @@ class Download {
             if (eta){
                 logger.log('info', `downloading ${this.id()}`, {
                     progress: this.percentString(),
-                    downloaded: largeBytesToShortString(this.downloadedFileSize()),
+                    done: largeBytesToShortString(this.downloadedFileSize()),
+                    left: largeBytesToShortString(this.fileSize() - this.downloadedFileSize()),
                     speed: largeBytesToShortString(this.downloadedFileSize() / (this.downloadTime() / 1000)),
                     eta: accurateHumanize(eta)
                 })
@@ -275,13 +276,15 @@ export class DownloadEngine {
     }
 
     printStatus = () => {
-        logger.log('info', 'status', {
-            total: this.downloads.length,
-            blank: this.downloads.filter(d => d.isBlank()).length,
-            downloading: this.downloads.filter(d => d.isDownloading()).length,
-            downloaded: this._countDownloaded,
-            paused: this._pauseUntil > Date.now()
-        })
+        if (this.downloads.length > 0){
+            logger.log('info', 'Downloader status', {
+                done: this._countDownloaded,
+                pending: this.downloads.filter(d => d.isBlank()).length,
+                downloading: this.downloads.filter(d => d.isDownloading()).length > 0 ? 'yes' : 'no',
+                paused: this._pauseUntil > Date.now() ? 'yes' : 'no'
+            })
+            this.downloads.forEach(d => d.printStatus())
+        }
     }
 
 
@@ -332,7 +335,10 @@ export class DownloadEngine {
                     this.pause(60)
                 } 
                 else {
-                    console.error('[DL ENGINE]', `Error downloading ${d.url()}: ${message}`)
+                    logger.log('error', `Error downloading ${d.url()}`, {
+                        code,
+                        message
+                    })
                     this.remove(d.url(), true)
                     this.pause(30)                    
                 }

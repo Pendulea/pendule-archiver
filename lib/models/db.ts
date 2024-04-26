@@ -1,5 +1,5 @@
 import { Level } from "level"
-import { ARCHIVE_FOLDER, DATABASES_PATH, MIN_TIME_FRAME } from "../constant"
+import { MIN_TIME_FRAME } from "../constant"
 import fs from 'fs'
 import path from "path"
 import { buildDateStr } from "../utils"
@@ -9,8 +9,7 @@ export class MyDB {
     public db: Level<string, string>
 
     constructor(public symbol: string, public minHistoricalDate: string) {
-        fs.existsSync(DATABASES_PATH) || fs.mkdirSync(DATABASES_PATH, {recursive: true})
-        this.db = new Level(`${DATABASES_PATH}/${symbol.toLowerCase()}`, { valueEncoding: 'json' })
+        this.db = new Level(path.join(global.DB_DIR, symbol.toLowerCase()), { valueEncoding: 'json' })
     }
 
     isFullyInitialized = (timeFrame: number = MIN_TIME_FRAME) => this.isDateParsed(this.minHistoricalDate, timeFrame)
@@ -29,7 +28,7 @@ export class MyDB {
 
     downloadSymbolArchives = async (db: MyDB) => {
         let i = 1;
-        const folderPath = path.join(ARCHIVE_FOLDER, db.symbol)
+        const folderPath = path.join(global.ARCHIVE_DIR, db.symbol)
         !fs.existsSync(folderPath) && fs.mkdirSync(folderPath, { recursive: true })
     
         while (true){
