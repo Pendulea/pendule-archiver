@@ -2,5 +2,9 @@
     {
         "symbol": "CTSIUSDT",
         "min_historical_day": "2020-04-23"
+    },
+    {
+        "symbol": "BTCUSDT",
+        "min_historical_day": "2017-08-17"
     }
 ]
