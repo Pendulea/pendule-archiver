@@ -4,8 +4,7 @@ import fs from'fs'
 import moment from "moment";
 import { MIN_TIME_FRAME } from './constant';
 import winston from 'winston';
-import colorette, { Color, green, blue, magenta, cyan, gray, whiteBright, yellow } from 'colorette';
-
+import { Color, green, blue, magenta, cyan, gray, whiteBright, yellow } from 'colorette';
 
 function hashCode(str: string) {
     let hash = 0;

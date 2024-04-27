@@ -198,6 +198,7 @@ class Download {
         } catch (error: any){
             if (error.name === 'AbortError') {
                 logger.log('info', `successfully aborted ${this.id()}`)
+                fs.unlinkSync(this.data.path)
             } else {
                 this.data.end_at = Date.now()
                 this.data.last_update = Date.now()
@@ -288,7 +289,7 @@ export class DownloadEngine {
     }
 
 
-    shutDown = () => {
+    shutDown = async () => {
         this.downloads.forEach(d => this.remove(d.url()))
         this.downloads = []
         clearTimeout(this._pauseTimeout)
