@@ -1,7 +1,13 @@
 import WebSocket from 'ws';
 
-const url = 'ws://localhost:8080';
+if (!process.env.PARSER_SERVER_PORT){
+    console.error('PARSER_SERVER_PORT is not set')
+    process.exit(1)
+}
+
+const url = `ws://localhost:${process.env.PARSER_SERVER_PORT}`;
 const WS_RECONNECT_INTERVAL = 2000;
+
 
 interface IRequest {
     id     : string;
