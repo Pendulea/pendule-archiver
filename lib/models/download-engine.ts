@@ -1,8 +1,9 @@
 import axios, { AxiosResponse } from "axios"
 import { format, parseISO } from "date-fns"
 import fs from "fs"
-import { InspectablePromise, accurateHumanize, largeBytesToShortString, logger, makeInspectable } from "../utils"
+import { accurateHumanize, largeBytesToShortString, logger } from "../utils"
 import { MAX_NO_RESPONSE_TIMEOUT, MAX_PARALLEL_DOWNLOAD, MIN_INTERVAL_DOWNLOAD_STATUS } from "../constant"
+import { resolve } from "path"
 
 interface IDownload {
     url: string
@@ -13,8 +14,6 @@ interface IDownload {
     last_update: number
     total_size: number
     controller: AbortController | null
-    result: InspectablePromise<DownloadResult> | null
-    onDownloaded?: () => void
 }
 
 type DownloadResult = {
@@ -26,7 +25,7 @@ type DownloadResult = {
 
 class Download {
     private data: IDownload
-    constructor(url: string, path:string, onDownloaded?: () => void){
+    constructor(url: string, path:string){
         this.data = {
             url,
             path,
@@ -36,17 +35,18 @@ class Download {
             last_update: 0,
             total_size: 0,
             controller: null,
-            result: null,
-            onDownloaded
         }
     }
 
 
     id = () => this.data.url.replace('https://data.binance.vision/data/spot/daily/trades/', '')
 
+    hasStarted = () => {
+        return this.data.started_at > 0
+    }
 
     isBlank = () => {
-        return !this.hasCachedDownload() && this.data.controller === null && this.data.result === null
+        return !this.hasCachedDownload() && this.data.controller === null
     }
 
     isPathCached = () => {
@@ -54,7 +54,7 @@ class Download {
     }
 
     hasCachedDownload = () => {
-        return this.data.total_size === 0 && this.data.started_at > 0 && this.data.size_downloaded === 0 && this.data.last_update > 0 && this.data.end_at > 0 && !!this.data.result
+        return this.data.total_size === 0 && this.data.started_at > 0 && this.data.size_downloaded === 0 && this.data.last_update > 0 && this.data.end_at > 0
     }
 
     hasNoUpdates = () => {
@@ -65,6 +65,11 @@ class Download {
         return this.hasStarted() && !this.hasDownloaded() && !this.hasCachedDownload()
     }
 
+    hasDownloaded = () => {
+        return this.data.end_at > 0 && this.data.total_size > 0 && this.data.size_downloaded === this.data.total_size
+    }
+
+
     abort = () => {
         if (this.data.controller){    
             try {
@@ -72,11 +77,10 @@ class Download {
             } catch(e){
                 console.error(e)
             }
-            if (!this.hasDownloaded()){
-                fs.unlink(this.data.path, () => null)
+            if (this.fileSize() > 0 && !this.hasDownloaded()){
+                fs.unlinkSync(this.data.path)
             }
             this.data.controller = null
-            this.data.result = null
             this.data.total_size = 0
             this.data.size_downloaded = 0
             this.data.started_at = 0
@@ -133,10 +137,6 @@ class Download {
         return this.data.size_downloaded
     }
 
-    hasStarted = () => {
-        return this.data.started_at > 0
-    }
-
     percentString = () => {
         if (this.isBlank()){
             return '0%'
@@ -153,22 +153,7 @@ class Download {
         return '0%'
     }
 
-    hasDownloaded = () => {
-        const r = this.data.result
-        return r ? r.isSettled() : false
-    }
-
-    getResultIfDone = async () => {
-        if (this.hasDownloaded()){
-            const r = await this.data.result
-            if (r)
-                return r
-        }
-        return null
-    }
-
-    start = async (callback?: () => void) => {
-        const { onDownloaded } = this.data
+    start = async () => {
         if (this.hasStarted()){
             return
         }
@@ -177,12 +162,9 @@ class Download {
         this.data.last_update = Date.now()
         if (this.isPathCached()){
             this.data.end_at = Date.now();
-            this.data.result = makeInspectable(new Promise((resolve) => {
-                resolve({ status: 'success', message: 'File downloaded successfully.', code: 200 })
-                callback && callback()
-                onDownloaded && onDownloaded()
-            }))
-            return
+            return new Promise<DownloadResult>((resolve) => {
+                resolve({ status: 'success', message: 'File already downloaded.', code: 200 })
+            })
         }
 
         this.data.controller = new AbortController();
@@ -196,54 +178,54 @@ class Download {
                 validateStatus: (status) => status >= 200 && status < 500
             });
         } catch (error: any){
+            if (this.fileSize() > 0){
+                fs.unlinkSync(this.data.path)
+            }
+            this.data.end_at = Date.now()
+            this.data.last_update = Date.now()
             if (error.name === 'AbortError') {
                 logger.log('info', `successfully aborted ${this.id()}`)
-                fs.unlinkSync(this.data.path)
             } else {
-                this.data.end_at = Date.now()
-                this.data.last_update = Date.now()
-                this.data.result = makeInspectable(new Promise(resolve => resolve({ status: 'error', message: error.message, code: 500 })))
+                return new Promise<DownloadResult>((resolve) => {
+                    resolve({ status: 'error', message: JSON.stringify(error), code: 500 })
+                })
             }
-            return
         }
         if (response){
-            if (response.status !== 200){
+            const { status } = response as any
+            if (status !== 200){
                 this.data.end_at = Date.now()
                 this.data.last_update = Date.now()
-                this.data.result = makeInspectable(new Promise(resolve => resolve({ status: 'error', message: '', code: response?.status as number })))
-                return
+                return new Promise<DownloadResult>((resolve) => {
+                    resolve({ status: 'error', message: 'Error downloading file.', code: status })
+                })
             }
         }
-
         this.data.total_size = parseInt(response?.headers['content-length']);
 
-        response?.data.on('data', (chunk: any) => {
-            this.data.size_downloaded += chunk.length
-            if (Date.now() - this.data.last_update > MIN_INTERVAL_DOWNLOAD_STATUS){
-                this.data.last_update = Date.now();
-                this.printStatus()
-            }
-        })
-        this.data.result = makeInspectable(new Promise<DownloadResult>((resolve) => {
+        return new Promise<DownloadResult>((resolve) => {
+            response?.data.on('data', (chunk: any) => {
+                this.data.size_downloaded += chunk.length
+                if (Date.now() - this.data.last_update > MIN_INTERVAL_DOWNLOAD_STATUS){
+                    this.data.last_update = Date.now();
+                    this.printStatus()
+                }
+            })
+
             const writer = response?.data.pipe(fs.createWriteStream(this.data.path));
             writer.on('finish', () => {
                 this.data.end_at = Date.now();
                 this.data.last_update = Date.now();
-
-                logger.log('info', `downloaded ${this.id()}`, {
-                    time: accurateHumanize(this.downloadTime()),
-                })
                 resolve({ status: 'success', message: 'File downloaded successfully.', code: 200 })
-                callback && callback()
-                onDownloaded && onDownloaded()
             });
             writer.on('error', (e) => {
-                logger.log('error', `error downloading ${this.id()}`, {
-                    error: JSON.stringify(e)
-                })
-                resolve({ status: 'error', message: 'Error writing file.', code: 500 })
+                this.data.end_at = Date.now();
+                this.data.last_update = Date.now();
+                fs.unlinkSync
+                resolve({ status: 'error', message: 'Error writing file:' + JSON.stringify(e), code: 500 })
             });
-        }))
+
+        })
     }
 }
 
@@ -265,20 +247,12 @@ export class DownloadEngine {
     private _pauseTimeout: NodeJS.Timeout | undefined = undefined
 
     constructor(){
-        _interval = setInterval(() => {
-            if(_i % 20 === 0){
-                this.printStatus()
-                _i = 0
-            }
-            this.run()
-            _i++
-        }, 500)
-
+        _interval = setInterval(this.printStatus, 5_000)
     }
 
     printStatus = () => {
         if (this.downloads.length > 0){
-            logger.log('info', 'Downloader status', {
+            logger.log('info', `Status`, {
                 done: this._countDownloaded,
                 pending: this.downloads.filter(d => d.isBlank()).length,
                 downloading: this.downloads.filter(d => d.isDownloading()).length > 0 ? 'yes' : 'no',
@@ -287,7 +261,6 @@ export class DownloadEngine {
             this.downloads.forEach(d => d.printStatus())
         }
     }
-
 
     shutDown = async () => {
         this.downloads.forEach(d => this.remove(d.url()))
@@ -300,15 +273,16 @@ export class DownloadEngine {
     pause = (seconds: number) => {
         this._pauseUntil = Date.now() + seconds * 1000
         clearTimeout(this._pauseTimeout)
-        this._pauseTimeout = setTimeout(this.run, seconds * 1000)
+        this._pauseTimeout = setTimeout(this.run, (seconds+1) * 1000)
     }
 
-    add = (url: string, path: string, onDownloaded?: () => void) => {
+    add = (url: string, path: string) => {
         const d = this.downloads.find(d => d.url() === url)
         if (!d){
-            const d = new Download(url, path, onDownloaded)
+            const d = new Download(url, path)
             this.downloads.push(d)
         }
+        this.run()
     }
 
     remove = (url: string, reschedule = false) => {
@@ -318,31 +292,6 @@ export class DownloadEngine {
             this.downloads = this.downloads.filter(d => d.url() !== url)
             if (reschedule){
                 this.downloads.push(d)
-            }
-        }
-    }
-
-    private handleDone = async () => {
-        const finished = this.downloads.filter(d => d.hasDownloaded())
-        for (const d of finished){
-            const r = await d.getResultIfDone()
-            if (r){
-                const { code, message } = r
-                if (code === 404 || code === 200){
-                    this.remove(d.url())
-                } 
-                else if (code === 429){
-                    this.remove(d.url(), true)
-                    this.pause(60)
-                } 
-                else {
-                    logger.log('error', `Error downloading ${d.url()}`, {
-                        code,
-                        message
-                    })
-                    this.remove(d.url(), true)
-                    this.pause(30)                    
-                }
             }
         }
     }
@@ -357,13 +306,41 @@ export class DownloadEngine {
         }
 
         this.downloads.forEach(d => d.isDownloading() && d.hasNoUpdates() && this.remove(d.url(), true))
-        this.handleDone()
 
         const inactive = this.downloads.find(d => !d.hasStarted())
         if (inactive){
-            inactive.start(() => {
-                this._countDownloaded++
-            })
+             inactive.start().then((res) => {
+                if (res?.code=== 200){
+                    this._countDownloaded++
+                    //check it's not cached
+                    if (inactive.hasDownloaded()){
+                        logger.log('info', `downloaded ✅ ${inactive.id()}`, {
+                            time: accurateHumanize(inactive.downloadTime()),
+                        })
+                    }
+                } else if (res?.code === 429){
+                    this.pause(60)
+                    logger.log('warn', `Rate limited, pausing for 60 seconds`)
+                } else if (res?.code === 404){
+                    this.remove(inactive.url())
+                    logger.log('warn', `File not found ${inactive.url()}`)
+                } else {
+                    logger.log('error', `Error downloading ${inactive.url()}`, {
+                        code: res?.code,
+                        message: res?.message
+                    })
+                    this.remove(inactive.url(), true)
+                    this.pause(30)   
+                }
+             }).catch((e) => {
+                logger.log('error', `Unhandled error downloading ${inactive.url()}`, {
+                    message: JSON.stringify(e)
+                })
+                this.remove(inactive.url(), true)
+                this.pause(30)
+             }).finally(() => {
+                    this.run()
+             })
         }
     }
 }

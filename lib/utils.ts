@@ -174,34 +174,34 @@ export const largeNumberToShortString = (n: number) => {
     return n.toString();
 }
 
-export interface InspectablePromise<T> extends Promise<T> {
-    isFulfilled: () => boolean;
-    isRejected: () => boolean;
-    isSettled: () => boolean;
-    onFulfilled: () => void;
-}
+// export interface InspectablePromise<T> extends Promise<T> {
+//     isFulfilled: () => boolean;
+//     isRejected: () => boolean;
+//     isSettled: () => boolean;
+//     onFulfilled: () => void;
+// }
 
-export function makeInspectable<T>(promise: Promise<T>): InspectablePromise<T> {
-    let isFulfilled = false;
-    let isRejected = false;
+// export function makeInspectable<T>(promise: Promise<T>): InspectablePromise<T> {
+//     let isFulfilled = false;
+//     let isRejected = false;
 
-    const wrappedPromise = promise.then(
-        (value: T) => {
-            isFulfilled = true;
-            return value;
-        },
-        (error: any) => {
-            isRejected = true;
-            throw error;
-        }
-    ) as InspectablePromise<T>;
+//     const wrappedPromise = promise.then(
+//         (value: T) => {
+//             isFulfilled = true;
+//             return value;
+//         },
+//         (error: any) => {
+//             isRejected = true;
+//             throw error;
+//         }
+//     ) as InspectablePromise<T>;
 
-    wrappedPromise.isFulfilled = () => isFulfilled;
-    wrappedPromise.isRejected = () => isRejected;
-    wrappedPromise.isSettled = () => isFulfilled || isRejected;
+//     wrappedPromise.isFulfilled = () => isFulfilled;
+//     wrappedPromise.isRejected = () => isRejected;
+//     wrappedPromise.isSettled = () => isFulfilled || isRejected;
 
-    return wrappedPromise;
-}
+//     return wrappedPromise;
+// }
 
 
 export const accurateHumanize = (ms: number) => {

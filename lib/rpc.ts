@@ -1,7 +1,10 @@
 import WebSocket from 'ws';
+import { logger } from './utils';
 
-if (!process.env.PARSER_SERVER_PORT){
-    console.error('PARSER_SERVER_PORT is not set')
+const PARSER_SERVER_PORT = parseInt(process.env.PARSER_SERVER_PORT || '8889')
+
+if (isNaN(PARSER_SERVER_PORT) || PARSER_SERVER_PORT < 0 || PARSER_SERVER_PORT > 65535){
+    logger.error('Invalid port for parser server')
     process.exit(1)
 }
 
@@ -94,12 +97,17 @@ class Service {
         });
     
         this._service.onopen = () => {
-            console.log('Websocket with Pendule Parser is open')
+            logger.log('info', `Connexion with parser is open`, {
+                port: PARSER_SERVER_PORT
+            })
             this._connected = true;
         };
     
         this._service.onerror = (error) => {
-            // console.log(`Connection Error: ${error.toString()}`);
+            // logger.log('error', `Error with parser connexion`, {
+            //     port: PARSER_SERVER_PORT,
+            //     error: JSON.stringify(error)
+            // })
         };
     
         this._service.onmessage = (e: WebSocket.MessageEvent) => {
@@ -108,7 +116,9 @@ class Service {
     
         this._service.onclose = () => {
             this._connected = false;
-            console.log('Websocket with Pendule Parser is closed')
+            logger.log('warn', `Connexion with parser is closed`, {
+                port: PARSER_SERVER_PORT
+            })
             this._service = null;
             if (this._reconnect){
                 this._reconnectTimeout = setTimeout(this.connect, WS_RECONNECT_INTERVAL);
