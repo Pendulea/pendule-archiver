@@ -94,7 +94,7 @@ const handlePairParsingJSON = async () => {
 }
 
 new minicall({
-    time: ["03:00:00"], //Based on UTC time 
+    time: ["06:00:00"], //Based on UTC time 
     execute: () => handlePairParsingJSON()
 }).start()
 
