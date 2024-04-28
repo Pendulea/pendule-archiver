@@ -1,15 +1,32 @@
 import { MIN_TIME_FRAME } from "../constant"
 import fs from 'fs'
 import path from "path"
-import { buildDateStr } from "../utils"
+import { buildDateStr, logger } from "../utils"
 import downloadEngine, { DownloadEngine } from "./download-engine"
 import { service } from "../rpc"
+import axios from "axios"
 
 export class Symbol {
 
     constructor(public symbol: string, public minHistoricalDate: string) {}
 
     isFullyInitialized = (timeFrame: number = MIN_TIME_FRAME) => this.isDateParsed(this.minHistoricalDate, timeFrame)
+
+    public checkSymbol = async () => {
+        try {
+            const response = await axios.head(DownloadEngine.buildURL(this.symbol, this.minHistoricalDate));
+            if (response.status === 200) {
+                return true
+            }
+            return false
+        } catch (error: any) {
+            logger.error('Error checking symbol', {
+                symbol: this.symbol,
+                error: error.message
+            })
+            return false
+        }
+    }
 
     public isDateParsed = async (date: string, timeFrame: number = MIN_TIME_FRAME) => {
         try {
@@ -20,26 +37,25 @@ export class Symbol {
             }) as {exist: boolean}
             return r.exist
         } catch (error) {
-            console.log(error)
             return true
         }
    }
 
-    downloadSymbolArchives = async (symbol: Symbol) => {
+    downloadSymbolArchives = async () => {
         let i = 1;
-        const folderPath = path.join(global.ARCHIVE_DIR, symbol.symbol)
+        const folderPath = path.join(global.ARCHIVE_DIR, this.symbol)
         !fs.existsSync(folderPath) && fs.mkdirSync(folderPath, { recursive: true })
     
         while (true){
             const date = buildDateStr(i)
-            if (date < symbol.minHistoricalDate){
+            if (date < this.minHistoricalDate){
                 break
             }
-            const p = await symbol.isDateParsed(date)
+            const p = await this.isDateParsed(date)
             if (!p){
-                const fileName = `${symbol.symbol}-trades-${date}.zip`;
+                const fileName = `${this.symbol}-trades-${date}.zip`;
                 const fullPath = path.join(folderPath, fileName)
-                downloadEngine.add(DownloadEngine.buildURL(symbol.symbol, date), fullPath)
+                downloadEngine.add(DownloadEngine.buildURL(this.symbol, date), fullPath)
             }
             i++
         }

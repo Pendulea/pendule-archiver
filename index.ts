@@ -5,8 +5,8 @@ import downloadEngine from "./lib/models/download-engine";
 import { logger } from "./lib/utils";
 import fs from 'fs'
 import path from "path";
-import { set } from "date-fns";
 import { service }  from './lib/rpc'
+import minicall from 'minicall'
 
 let Pairs: Symbol[] = []
 let shutdownRequested = false;
@@ -21,9 +21,7 @@ const cleanup = async () => {
     logger.info('clean exit done')
 }
 
-
-const main = async () => { 
-    const PAIRS_PATH = process.env.PAIRS_PATH || ''
+const initPathEnv = () => {
     const ARCHIVES_DIR = process.env.ARCHIVES_DIR || ''
     const DATABASES_DIR = process.env.DATABASES_DIR || ''
 
@@ -45,35 +43,68 @@ const main = async () => {
         })
         global.DB_DIR = path.join(DATABASES_DIR);
     }
+}
 
-    //check if valid json file
-    try {
-        if (!fs.existsSync(PAIRS_PATH)) {
-            logger.error('pairs.json file not found')
-            process.exit(0)
-        }
-        const data = fs.readFileSync(PAIRS_PATH, 'utf8')
-        Pairs = JSON.parse(data).map(pair => {
-            if (pair.symbol && pair.min_historical_day) {
-                return new Symbol(pair.symbol, pair.min_historical_day)
-            } else {
-                logger.error('pairs.json file is not valid')
-                process.exit(0)
-            }
-        })
-        logger.info('pairs.json file loaded', {
-            path: PAIRS_PATH,
-            count: Pairs.length
-        })
-    } catch (error) {
-        console.log(error)
-        logger.error('pairs.json file is not a valid json file')
+const handlePairParsingJSON = async () => {
+    const PAIRS_PATH = process.env.PAIRS_PATH || ''
+    if (!fs.existsSync(PAIRS_PATH)){
+        logger.error('pairs.json file not found')
         process.exit(0)
     }
-
-    for (const pair of Pairs) {
-        await pair.downloadSymbolArchives(pair)
+    const data = fs.readFileSync(PAIRS_PATH, 'utf8')
+    let json: { symbol: string, min_historical_day: string }[] = []
+    try {
+        json = JSON.parse(data) as { symbol: string, min_historical_day: string }[]
+    } catch (error) {
+        logger.error('pairs.json file is not a valid json file')
+        return
     }
+        
+    logger.info(`${path.basename(PAIRS_PATH)} file read successfully`, {
+        pairs: json.length
+    })
+
+    Pairs = []
+    for (const pair of json) {
+        if (!pair.symbol.trim() || !pair.min_historical_day.trim()) {
+            logger.warn('Invalid pair in pairs.json file', {
+                pair: JSON.stringify(pair)
+            })
+        } else {
+            const exist = Pairs.find(p => p.symbol.toLowerCase() === pair.symbol.toLowerCase())
+            if (!exist){
+                const s = new Symbol(pair.symbol, pair.min_historical_day)
+                const symbolFound = await s.checkSymbol()
+                if (symbolFound){
+                    Pairs.push(s)
+                    await s.downloadSymbolArchives()
+                } else {
+                    logger.error('Symbol not found', {
+                        symbol: pair.symbol
+                    })
+                }
+            }
+        }
+    }
+
+    logger.info('Pairs initialized', {
+        active: Pairs.length,
+        inactive: json.length - Pairs.length
+    })
+}
+
+new minicall({
+    time: ["03:00:00"], //Based on UTC time 
+    execute: () => handlePairParsingJSON()
+}).start()
+
+
+const main = async () => { 
+    initPathEnv()
+    handlePairParsingJSON()
+    const PAIRS_PATH = process.env.PAIRS_PATH || ''
+
+    fs.watch(PAIRS_PATH, (eventType) => eventType === 'change' && handlePairParsingJSON())
 }
 
 process.on('SIGINT', async () => {

@@ -251,11 +251,13 @@ export class DownloadEngine {
     }
 
     printStatus = () => {
-        if (this.downloads.length > 0){
+        const pending = this.downloads.filter(d => d.isBlank()).length
+        const downloading = this.downloads.filter(d => d.isDownloading()).length > 0 ? 'yes' : 'no'
+        if (pending > 0 || downloading === 'yes'){
             logger.log('info', `Status`, {
                 done: this._countDownloaded,
-                pending: this.downloads.filter(d => d.isBlank()).length,
-                downloading: this.downloads.filter(d => d.isDownloading()).length > 0 ? 'yes' : 'no',
+                pending,
+                downloading,
                 paused: this._pauseUntil > Date.now() ? 'yes' : 'no'
             })
             this.downloads.forEach(d => d.printStatus())
