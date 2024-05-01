@@ -17,7 +17,7 @@ function hashCode(str: string) {
 }
 
 const COLOR_LIST = [
-    green, blue, magenta, cyan, yellow
+    blue, magenta, cyan, yellow
 ]
 
 function getColor(key: string, colors: Color[]): Color {
@@ -51,6 +51,21 @@ export const logger = winston.createLogger({
         // new winston.transports.File({ filename: 'logs.log' })
     ]
 });
+
+export const extractSymbolFromTradeZipFile = (filename: string): string | null => {
+    // Regular expression to match the symbol in the filename
+    const regex = /(.+)-trades-\d{4}-\d{2}-\d{2}\.zip$/;
+    const match = filename.match(regex);
+
+    if (match && match[1]) {
+        // If a match is found, return the symbol string
+        return match[1];
+    } else {
+        // If no match is found, return null
+        return null;
+    }
+
+}
 
 
 export function extractDateFromTradeZipFile(filename: string): string | null {

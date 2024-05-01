@@ -8,9 +8,8 @@ if (isNaN(PARSER_SERVER_PORT) || PARSER_SERVER_PORT < 0 || PARSER_SERVER_PORT > 
     process.exit(1)
 }
 
-const url = `ws://localhost:${process.env.PARSER_SERVER_PORT}`;
+const url = `ws://localhost:${PARSER_SERVER_PORT}`;
 const WS_RECONNECT_INTERVAL = 2000;
-
 
 interface IRequest {
     id     : string;
@@ -42,7 +41,7 @@ class Service {
         }
     }
 
-    request = async (type: string, payload: any) => {
+    request = async (type: string, payload: {[key: string]: any}) => {
         await this.waitForConnected()
         const id = Math.random().toString(10)
         const promise = new Promise<{[key: string]: any}>((resolve, reject) => {

@@ -1,9 +1,10 @@
 import axios, { AxiosResponse } from "axios"
 import { format, parseISO } from "date-fns"
 import fs from "fs"
-import { accurateHumanize, largeBytesToShortString, logger } from "../utils"
+import { accurateHumanize, extractDateFromTradeZipFile, extractSymbolFromTradeZipFile, largeBytesToShortString, logger } from "../utils"
 import { MAX_NO_RESPONSE_TIMEOUT, MAX_PARALLEL_DOWNLOAD, MIN_INTERVAL_DOWNLOAD_STATUS } from "../constant"
 import { resolve } from "path"
+import { green } from "colorette"
 
 interface IDownload {
     url: string
@@ -316,7 +317,8 @@ export class DownloadEngine {
                     this._countDownloaded++
                     //check it's not cached
                     if (inactive.hasDownloaded()){
-                        logger.log('info', `downloaded ✅ ${inactive.id()}`, {
+                        const filename = inactive.url().split('/').pop()
+                        logger.log('info', green(`Successfully downloaded ${extractSymbolFromTradeZipFile(filename || '')} archive ${extractDateFromTradeZipFile(filename || '')}`), {
                             time: accurateHumanize(inactive.downloadTime()),
                         })
                     }
