@@ -18,6 +18,7 @@ const cleanup = async () => {
     shutdownRequested = true
     service.stop()
     downloadEngine.shutDown()
+    fs.unwatchFile(process.env.PAIRS_PATH || '')
     logger.info('clean exit done')
 }
 
