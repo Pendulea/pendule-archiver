@@ -9,17 +9,16 @@ import { service }  from './lib/rpc'
 import minicall from 'minicall'
 
 let Pairs: Symbol[] = []
-let shutdownRequested = false;
 
 const cleanup = async () => {
-    if (shutdownRequested) {
-        return
-    }
-    shutdownRequested = true
+    logger.info('cleaning up...')
+    process.off('SIGINT', cleanup)
     service.stop()
     await downloadEngine.shutDown()
     fs.unwatchFile(process.env.PAIRS_PATH || '')
     logger.info('clean exit done')
+    process.exit(0)
+    
 }
 
 const initPathEnv = () => {
