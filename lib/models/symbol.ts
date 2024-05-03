@@ -1,4 +1,4 @@
-import { MIN_TIME_FRAME } from "../constant"
+import { FUTURES_KEY, MIN_TIME_FRAME, SPOT_KEY } from "../constant"
 import fs from 'fs'
 import path from "path"
 import { buildDateStr, logger } from "../utils"
@@ -9,22 +9,20 @@ import { format, parseISO } from "date-fns"
 
 export class Symbol {
 
-    static BuildPairID = (pairSymbol: string, future: boolean) => {
-        return pairSymbol + (future ? '_futures' : '_spot')
+    static BuildSetID = (pairSymbol: string, future: boolean) => {
+        return pairSymbol + (future ? FUTURES_KEY : SPOT_KEY)
     }
 
     constructor(private symbol: string, private minHistoricalDate: string, private future: boolean) {}
 
 
-    public id = () => {
-        return Symbol.BuildPairID(this.symbol, this.future)
+    public setID = () => {
+        return Symbol.BuildSetID(this.symbol, this.future)
     }
 
     public buildArchivePath = (date: string) => {
-        const spotOrFuture = this.future ? 'FUTURE' : 'SPOT'
-        const folderPath = path.join(global.ARCHIVE_DIR, this.symbol, spotOrFuture)
+        const folderPath = path.join(global.ARCHIVE_DIR, this.symbol, this.future ? FUTURES_KEY : SPOT_KEY)
         !fs.existsSync(folderPath) && fs.mkdirSync(folderPath, { recursive: true })
-
         const fileName = `${this.symbol}-trades-${date}.zip`;
         return path.join(folderPath, fileName)
     } 
@@ -32,6 +30,10 @@ export class Symbol {
     public buildURL = (date: string) => {
         const formattedDate = format(parseISO(date), 'yyyy-MM-dd');
         const fileName = `${this.symbol}-trades-${formattedDate}.zip`;
+
+        if (this.future) {
+            return `https://data.binance.vision/data/futures/um/daily/trades/${this.symbol}/${fileName}`;
+        }
         return `https://data.binance.vision/data/spot/daily/trades/${this.symbol}/${fileName}`;
     }
 
@@ -56,7 +58,7 @@ export class Symbol {
     public isDateParsed = async (date: string) => {
         try {
             const r = await service.request('IsDateParsed', {
-                symbol: this.symbol,
+                set_id: this.setID(),
                 date,
                 timeframe: MIN_TIME_FRAME
             }) as {exist: boolean}

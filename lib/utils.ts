@@ -34,8 +34,7 @@ export const logger = winston.createLogger({
             const { timestamp, level, message, ...extra } = info;
             let colorList = COLOR_LIST.slice()
             const extraDetails = Object.keys(extra).map(key => {
-
-                const valueColor = getColor(key, colorList);
+                const valueColor = getColor(key, colorList.length > 0 ? colorList : COLOR_LIST);
                 colorList = colorList.filter(c => c !== valueColor)
 
                 return `${valueColor(key + '')}: ${valueColor(extra[key] + '')}`;

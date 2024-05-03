@@ -279,7 +279,7 @@ export class DownloadEngine {
 
         const d = this.downloads.find(d => d.url() === url)
         if (!d){
-            const d = new Download(url, symbol.buildArchivePath(date), symbol.id())
+            const d = new Download(url, symbol.buildArchivePath(date), symbol.setID())
             this.downloads.push(d)
         }
         this.run()

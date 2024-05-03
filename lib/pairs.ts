@@ -73,7 +73,7 @@ export const handlePairParsingJSON = async () => {
             })
             continue
         } else if (binancePair){
-            const exist = Pairs.find(p => p.id() === Symbol.BuildPairID(binancePair, pair.futures))
+            const exist = Pairs.find(p => p.setID() === Symbol.BuildSetID(binancePair, pair.futures))
             if (!exist){
                 const s = new Symbol(binancePair, pair.min_historical_day, pair.futures)
                 const symbolFound = await s.checkSymbol()
