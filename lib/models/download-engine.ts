@@ -1,10 +1,9 @@
 import axios, { AxiosResponse } from "axios"
-import { format, parseISO } from "date-fns"
 import fs from "fs"
 import { accurateHumanize, extractDateFromTradeZipFile, extractSymbolFromTradeZipFile, largeBytesToShortString, logger } from "../utils"
 import { MAX_NO_RESPONSE_TIMEOUT, MAX_PARALLEL_DOWNLOAD, MIN_INTERVAL_DOWNLOAD_STATUS } from "../constant"
-import { resolve } from "path"
 import { green } from "colorette"
+import { Symbol } from "./symbol"
 
 interface IDownload {
     url: string
@@ -14,6 +13,7 @@ interface IDownload {
     end_at: number
     last_update: number
     total_size: number
+    id: string
     controller: AbortController | null
 }
 
@@ -26,7 +26,7 @@ type DownloadResult = {
 
 class Download {
     private data: IDownload
-    constructor(url: string, path:string){
+    constructor(url: string, path:string, id: string){
         this.data = {
             url,
             path,
@@ -35,12 +35,13 @@ class Download {
             end_at: 0,
             last_update: 0,
             total_size: 0,
+            id,
             controller: null,
         }
     }
 
 
-    id = () => this.data.url.replace('https://data.binance.vision/data/spot/daily/trades/', '')
+    id = () => this.data.id.slice()
 
     hasStarted = () => {
         return this.data.started_at > 0
@@ -236,12 +237,6 @@ let _i = 0
 
 export class DownloadEngine {
 
-    static buildURL = (symbol: string, date: string) => {
-        const formattedDate = format(parseISO(date), 'yyyy-MM-dd');
-        const fileName = `${symbol}-trades-${formattedDate}.zip`;
-        return `https://data.binance.vision/data/spot/daily/trades/${symbol}/${fileName}`;
-    }
-
     private _countDownloaded = 0
     private downloads: Download[] = []
     private _pauseUntil = 0
@@ -279,10 +274,12 @@ export class DownloadEngine {
         this._pauseTimeout = setTimeout(this.run, (seconds+1) * 1000)
     }
 
-    add = (url: string, path: string) => {
+    add = (symbol: Symbol, date: string) => {
+        const url = symbol.buildURL(date)
+
         const d = this.downloads.find(d => d.url() === url)
         if (!d){
-            const d = new Download(url, path)
+            const d = new Download(url, symbol.buildArchivePath(date), symbol.id())
             this.downloads.push(d)
         }
         this.run()

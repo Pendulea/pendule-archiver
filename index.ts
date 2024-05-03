@@ -1,28 +1,12 @@
 require('dotenv').config();
 
-import { Symbol } from "./lib/models/symbol";
 import downloadEngine from "./lib/models/download-engine";
 import { logger } from "./lib/utils";
 import fs from 'fs'
 import path from "path";
 import { service }  from './lib/rpc'
 import minicall from 'minicall'
-
-let Pairs: Symbol[] = []
-
-interface IPair {
-    binance: boolean
-    symbol0: string
-    symbol1: string
-    min_historical_day: string
-}
-
-const getBinanceSymbols = (p: IPair) => {
-    if (p.binance) {
-        return p.symbol0.toUpperCase() + p.symbol1.toUpperCase()
-    }
-    return null
-}
+import { handlePairParsingJSON } from "./lib/pairs";
 
 
 const cleanup = async () => {
@@ -60,55 +44,6 @@ const initPathEnv = () => {
     }
 }
 
-const handlePairParsingJSON = async () => {
-    const PAIRS_PATH = process.env.PAIRS_PATH || ''
-    if (!fs.existsSync(PAIRS_PATH)){
-        logger.error('pairs.json file not found')
-        process.exit(0)
-    }
-    const data = fs.readFileSync(PAIRS_PATH, 'utf8')
-    let json: IPair[] = []
-    try {
-        json = JSON.parse(data) as IPair[]
-    } catch (error) {
-        logger.error('pairs.json file is not a valid json file')
-        return
-    }
-    
-
-    Pairs = []
-    for (const pair of json) {
-        const binancePair = getBinanceSymbols(pair)
-
-        if (!!pair.min_historical_day.trim() && !!binancePair){
-            const exist = Pairs.find(p => p.symbol === binancePair)
-            if (!exist){
-                const s = new Symbol(binancePair, pair.min_historical_day)
-                const symbolFound = await s.checkSymbol()
-                if (symbolFound){
-                    Pairs.push(s)
-                    await s.downloadSymbolArchives()
-                } else {
-                    logger.error('Symbol not found', {
-                        symbol: binancePair
-                    })
-                }
-            }
-        
-        } else if (pair.binance) {
-            logger.warn('Invalid pair in pairs.json file', {
-                pair: JSON.stringify(pair)
-            })
-        }
-    }
-
-
-
-    logger.info('Pairs initialized', {
-        active: Pairs.length,
-        inactive: json.length - Pairs.length
-    })
-}
 
 new minicall({
     time: ["06:00:00", "12:00:00", "18:00:00"], //Based on UTC time 

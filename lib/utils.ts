@@ -1,10 +1,7 @@
-import { readdir } from 'fs/promises';
 import { format } from 'date-fns';
-import fs from'fs'
 import moment from "moment";
-import { MIN_TIME_FRAME } from './constant';
 import winston from 'winston';
-import { Color, green, blue, magenta, cyan, gray, whiteBright, yellow } from 'colorette';
+import { Color, blue, magenta, cyan, gray, whiteBright, yellow } from 'colorette';
 
 function hashCode(str: string) {
     let hash = 0;
@@ -64,7 +61,6 @@ export const extractSymbolFromTradeZipFile = (filename: string): string | null =
         // If no match is found, return null
         return null;
     }
-
 }
 
 
@@ -82,34 +78,38 @@ export function extractDateFromTradeZipFile(filename: string): string | null {
     }
 }
 
-export const timeFrameToLabel = (timeFrame: number): string => {
-    if (timeFrame < MIN_TIME_FRAME) {
-      throw new Error('Time frame is too small');
-    }
-    if (timeFrame % MIN_TIME_FRAME !== 0) {
-      throw new Error(`Time frame must be a multiple of ${MIN_TIME_FRAME/ 1000} seconds`);
-    }
-  
-    let seconds = Math.floor(timeFrame / 1000);
-    let label = `${seconds}s`;
-    if (seconds > 59 && seconds % 60 === 0){
-      label = `${seconds / 60}m`;
-    }
-    if (seconds > 3599 && seconds % 3600 === 0){
-      label = `${seconds / 3600}h`;
-    }
-    if (seconds > 86399 && seconds % 86400 === 0){
-      label = `${seconds / 86400}d`;
-    }
-    if (seconds > 604799 && seconds % 604800 === 0){
-      label = `${seconds / 604800}w`;
-    }
-    return label
-}
+// export const timeFrameToLabel = (timeFrame: number): string => {
+//     if (timeFrame < MIN_TIME_FRAME) {
+//       throw new Error('Time frame is too small');
+//     }
+//     if (timeFrame % MIN_TIME_FRAME !== 0) {
+//       throw new Error(`Time frame must be a multiple of ${MIN_TIME_FRAME/ 1000} seconds`);
+//     }
+//     if (timeFrame > MAX_TIME_FRAME) {
+//         throw new Error('Time frame is too large');
+//     }
 
-export function getFileSize(filePath: string) {
-  return fs.statSync(filePath).size
-}
+//     let seconds = Math.floor(timeFrame / 1000);
+//     let label = `${seconds}s`;
+
+//     if (seconds > 2591999 && seconds % 2592000 === 0){
+//         label = `${seconds / 2592000}M`;
+//     }
+//     if (seconds > 604799 && seconds % 604800 === 0){
+//         label = `${seconds / 604800}w`;
+//     }
+//     if (seconds > 86399 && seconds % 86400 === 0){
+//         label = `${seconds / 86400}d`;
+//     }
+//     if (seconds > 3599 && seconds % 3600 === 0){
+//         label = `${seconds / 3600}h`;
+//     }
+//     if (seconds > 59 && seconds % 60 === 0){
+//       label = `${seconds / 60}m`;
+//     }
+
+//     return label
+// }
 
 export const strDateToDate = (d: string) => {
     const date = new Date(d + "T00:00:00Z");
@@ -128,41 +128,6 @@ export const buildDateStr = (dAgo: number) => {
     return format(new Date(now.toISOString().slice(0, -1)),'yyyy-MM-dd')
 }
 
-
-export async function sortFolderFiles(folderPath: string): Promise<string[]> {
-    try {
-        // Read directory contents
-        const files = await readdir(folderPath);
-
-        // Filter and sort ZIP files
-        const zipFiles = files.filter(file => file.endsWith('.zip')).sort();
-        return zipFiles;
-    } catch (error) {
-        console.error('Failed to read or sort files:', error);
-        return [];
-    }
-}
-
-export function countNewlines(filePath: string): Promise<number> {
-  return new Promise((resolve, reject) => {
-      let lineCount = 0;
-      const stream = fs.createReadStream(filePath, { encoding: 'utf8', highWaterMark: 1024 * 1024});
-
-      stream.on('data', (chunk: string) => {
-          // Count the newlines in the current chunk
-          lineCount += (chunk.match(/\n/g) || []).length;
-      });
-
-      stream.on('end', () => {
-          resolve(lineCount);
-      });
-
-      stream.on('error', (err) => {
-          reject(err);
-      });
-  });
-}
-
 export const largeBytesToShortString = (b: number) => {
     if (b >= 1_000_000_000) {
         return (b / 1_000_000_000).toFixed(2) + 'GB';
@@ -176,18 +141,18 @@ export const largeBytesToShortString = (b: number) => {
     return b.toString() + 'B';
 }
 
-export const largeNumberToShortString = (n: number) => {
-    if (n >= 1_000_000_000) {
-        return (n / 1_000_000_000).toFixed(2) + 'B';
-    }
-    if (n >= 1_000_000) {
-        return (n / 1_000_000).toFixed(1) + 'M';
-    }
-    if (n >= 1_000) {
-        return (n / 1_000).toFixed(0) + 'K';
-    }
-    return n.toString();
-}
+// export const largeNumberToShortString = (n: number) => {
+//     if (n >= 1_000_000_000) {
+//         return (n / 1_000_000_000).toFixed(2) + 'B';
+//     }
+//     if (n >= 1_000_000) {
+//         return (n / 1_000_000).toFixed(1) + 'M';
+//     }
+//     if (n >= 1_000) {
+//         return (n / 1_000).toFixed(0) + 'K';
+//     }
+//     return n.toString();
+// }
 
 // export interface InspectablePromise<T> extends Promise<T> {
 //     isFulfilled: () => boolean;
