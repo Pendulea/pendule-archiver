@@ -10,6 +10,21 @@ import minicall from 'minicall'
 
 let Pairs: Symbol[] = []
 
+interface IPair {
+    binance: boolean
+    symbol0: string
+    symbol1: string
+    min_historical_day: string
+}
+
+const getBinanceSymbols = (p: IPair) => {
+    if (p.binance) {
+        return p.symbol0.toUpperCase() + p.symbol1.toUpperCase()
+    }
+    return null
+}
+
+
 const cleanup = async () => {
     logger.info('cleaning up...')
     process.off('SIGINT', cleanup)
@@ -52,40 +67,42 @@ const handlePairParsingJSON = async () => {
         process.exit(0)
     }
     const data = fs.readFileSync(PAIRS_PATH, 'utf8')
-    let json: { symbol: string, min_historical_day: string }[] = []
+    let json: IPair[] = []
     try {
-        json = JSON.parse(data) as { symbol: string, min_historical_day: string }[]
+        json = JSON.parse(data) as IPair[]
     } catch (error) {
         logger.error('pairs.json file is not a valid json file')
         return
     }
-        
-    logger.info(`${path.basename(PAIRS_PATH)} file read successfully`, {
-        pairs: json.length
-    })
+    
 
     Pairs = []
     for (const pair of json) {
-        if (!pair.symbol.trim() || !pair.min_historical_day.trim()) {
-            logger.warn('Invalid pair in pairs.json file', {
-                pair: JSON.stringify(pair)
-            })
-        } else {
-            const exist = Pairs.find(p => p.symbol.toLowerCase() === pair.symbol.toLowerCase())
+        const binancePair = getBinanceSymbols(pair)
+
+        if (!!pair.min_historical_day.trim() && !!binancePair){
+            const exist = Pairs.find(p => p.symbol === binancePair)
             if (!exist){
-                const s = new Symbol(pair.symbol, pair.min_historical_day)
+                const s = new Symbol(binancePair, pair.min_historical_day)
                 const symbolFound = await s.checkSymbol()
                 if (symbolFound){
                     Pairs.push(s)
                     await s.downloadSymbolArchives()
                 } else {
                     logger.error('Symbol not found', {
-                        symbol: pair.symbol
+                        symbol: binancePair
                     })
                 }
             }
+        
+        } else if (pair.binance) {
+            logger.warn('Invalid pair in pairs.json file', {
+                pair: JSON.stringify(pair)
+            })
         }
     }
+
+
 
     logger.info('Pairs initialized', {
         active: Pairs.length,
