@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"os"
 	"os/signal"
 	"syscall"
@@ -42,13 +43,9 @@ func main() {
 		for {
 			time.Sleep(time.Second * 5)
 			if engine.Engine.CountQueued() > 0 {
-				log.WithFields(log.Fields{
-					"done":         engine.Engine.CountDone(),
-					"pending":      engine.Engine.CountQueued(),
-					"running":      engine.Engine.CountRunning(),
-					"rpc_requests": engine.CountRPCRequests,
-					"sets":         len(activeSets),
-				}).Warn("Status")
+				fmt.Println("")
+				engine.Engine.PrintStatus()
+				fmt.Println("")
 			}
 		}
 	}()

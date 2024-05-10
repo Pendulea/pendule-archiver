@@ -24,7 +24,7 @@ func (e *engine) Init() {
 		client.Connect()
 		options := gorunner.NewEngineOptions().
 			SetName("Downloader").
-			SetMaxSimultaneousRunner(1).SetMaxRetry(3)
+			SetMaxSimultaneousRunner(SIMULTANEOUS_DOWNLOADS).SetMaxRetry(MAX_RETRY_PER_DOWLOAD_FAILED)
 		Engine = &engine{
 			Engine: gorunner.NewEngine(options),
 			client: client,
@@ -60,7 +60,6 @@ func (e *engine) RefreshSets(currentSets *WorkingSets) {
 		if s := currentSets.Add(&newSet); s != nil {
 			for _, date := range s.Inconsistencies {
 				e.AddDownload(currentSets, s.Pair.BuildSetID(), date)
-				break
 			}
 		}
 	}

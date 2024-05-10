@@ -1,0 +1,10 @@
+package engine
+
+import "time"
+
+const MIN_DOWNLOAD_BYTES_PER_SECOND = 10 * 1024
+const MAX_RETRY_PER_DOWLOAD_FAILED = 3
+const SIMULTANEOUS_DOWNLOADS = 2
+
+const TIMEBREAK_AFTER_TOO_MANY_REQUESTS = 2 * time.Minute
+const TIMEBREAK_UNKNOWN_REQUEST_ERROR = 30 * time.Second

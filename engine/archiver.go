@@ -35,6 +35,51 @@ func buildURL(set *pcommon.SetJSON, date string) string {
 	return ""
 }
 
+func autoCancelRequestDetection(runner *gorunner.Runner, abort func()) {
+	fileSize := runner.StatValue(STAT_TOTAL_SIZE)
+	//5kb per second
+	maxWait := time.Duration(fileSize/(1024*10)) * time.Second
+	time.Sleep(maxWait)
+	if !runner.IsDone() {
+		abort()
+	}
+}
+
+func printStatus(runner *gorunner.Runner) {
+
+	if runner.CountSteps() == 1 {
+		startedAt := runner.LastStep()
+		totalSize := runner.StatValue(STAT_TOTAL_SIZE)
+		sizeDownloaded := runner.StatValue(STAT_SIZE_DOWNLOADED)
+		percent := math.Min(float64(sizeDownloaded)/float64(totalSize)*100, 100)
+
+		eta := time.Duration((100 / percent) * float64(time.Since(startedAt)))
+
+		speed := float64(sizeDownloaded) / time.Since(startedAt).Seconds()
+
+		log.WithFields(log.Fields{
+			"rid":      runner.ID,
+			"eta":      pcommon.Format.AccurateHumanize(eta),
+			"speed":    fmt.Sprintf("%s/s", pcommon.Format.LargeBytesToShortString(int64(speed))),
+			"download": fmt.Sprintf("%s/%s", pcommon.Format.LargeBytesToShortString(sizeDownloaded), pcommon.Format.LargeBytesToShortString(totalSize)),
+		}).Info("Downloading...")
+	} else if runner.CountSteps() == 2 {
+		log.WithFields(log.Fields{
+			"rid":  runner.ID,
+			"size": pcommon.Format.LargeBytesToShortString(runner.StatValue(STAT_SIZE_DOWNLOADED)),
+			"in":   pcommon.Format.AccurateHumanize(time.Since(runner.StartedAt())),
+		}).Info("Successfully downloaded...")
+	}
+}
+
+func logInterval(runner *gorunner.Runner) {
+	time.Sleep(1500 * time.Millisecond)
+	for !runner.IsDone() {
+		printStatus(runner)
+		time.Sleep(5 * time.Second)
+	}
+}
+
 func addArchiveDownloaderProcess(runner *gorunner.Runner, set *pcommon.SetJSON) {
 
 	runner.AddProcess(func() error {
@@ -54,59 +99,36 @@ func addArchiveDownloaderProcess(runner *gorunner.Runner, set *pcommon.SetJSON) 
 			os.Remove(outputFilePath)
 		}
 
-		runner.SetStatValue(STAT_LAST_UPDATE, time.Now().UnixMilli())
-
-		go func() {
-			for !runner.IsDone() {
-				time.Sleep(4 * time.Second)
-
-				startedAt := runner.StartedAt()
-				totalSize := runner.StatValue(STAT_TOTAL_SIZE)
-				sizeDownloaded := runner.StatValue(STAT_SIZE_DOWNLOADED)
-				percent := math.Min(float64(sizeDownloaded)/float64(totalSize)*100, 100)
-
-				eta := time.Duration((100 / percent) * float64(time.Since(startedAt)))
-
-				speed := float64(sizeDownloaded) / time.Since(startedAt).Seconds()
-
-				log.WithFields(log.Fields{
-					"rid":      runner.ID,
-					"eta":      pcommon.Format.AccurateHumanize(eta),
-					"speed":    fmt.Sprintf("%s/s", pcommon.Format.LargeBytesToShortString(int64(speed))),
-					"download": fmt.Sprintf("%s/%s", pcommon.Format.LargeBytesToShortString(sizeDownloaded), pcommon.Format.LargeBytesToShortString(totalSize)),
-				}).Info("Downloading...")
-			}
-		}()
-
 		req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
 		if err != nil {
 			return err
 		}
 
-		// Execute the HTTP request
+		runner.SetStatValue(STAT_LAST_UPDATE, time.Now().UnixMilli())
+		runner.AddStep()
 		resp, err := client.Do(req)
 		if err != nil {
 			return err
 		}
-		defer resp.Body.Close()
 
 		if resp.StatusCode == http.StatusTooManyRequests {
-			Engine.Pause(time.Minute * 2)
+			Engine.Pause(TIMEBREAK_AFTER_TOO_MANY_REQUESTS)
+			return fmt.Errorf("too many requests")
 		}
 		if resp.StatusCode == http.StatusNotFound {
 			runner.DisableRetry()
-			log.WithFields(log.Fields{
-				"rid": runner.ID,
-				"url": url,
-			}).Error("File not found")
+			return fmt.Errorf("file not found")
 		}
-
 		if resp.StatusCode != http.StatusOK {
-			Engine.Pause(time.Second * 30)
+			Engine.Pause(TIMEBREAK_UNKNOWN_REQUEST_ERROR)
 			return fmt.Errorf("failed to download file status: %s", resp.Status)
 		}
 
-		set.Pair.BuildArchivesFilePath(date, "zip")
+		runner.SetStatValue(STAT_TOTAL_SIZE, int64(resp.ContentLength))
+		go autoCancelRequestDetection(runner, abort)
+		go logInterval(runner)
+
+		defer resp.Body.Close()
 
 		outFile, err := os.Create(outputFilePath)
 		if err != nil {
@@ -116,7 +138,6 @@ func addArchiveDownloaderProcess(runner *gorunner.Runner, set *pcommon.SetJSON) 
 
 		// Create a buffer to write the download in chunks
 		buf := make([]byte, 1024*32) // 32KB buffer
-		runner.SetStatValue(STAT_TOTAL_SIZE, int64(resp.ContentLength))
 
 		for {
 			n, readErr := resp.Body.Read(buf)
@@ -143,12 +164,8 @@ func addArchiveDownloaderProcess(runner *gorunner.Runner, set *pcommon.SetJSON) 
 			}
 		}
 
-		log.WithFields(log.Fields{
-			"rid":  runner.ID,
-			"size": pcommon.Format.LargeBytesToShortString(runner.StatValue(STAT_SIZE_DOWNLOADED)),
-			"in":   pcommon.Format.AccurateHumanize(time.Since(runner.StartedAt())),
-		}).Info("Successfully downloaded...")
-
+		runner.AddStep()
+		printStatus(runner)
 		return nil
 	})
 }
