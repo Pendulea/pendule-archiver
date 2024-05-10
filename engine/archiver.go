@@ -23,10 +23,6 @@ const (
 	STAT_SIZE_DOWNLOADED = "size_downloaded"
 )
 
-func printStatus(runner *gorunner.Runner, set *pcommon.SetJSON) {
-
-}
-
 func buildURL(set *pcommon.SetJSON, date string) string {
 	if set.Pair.IsBinanceValid() {
 		symbol := set.Pair.BuildBinanceSymbol()
