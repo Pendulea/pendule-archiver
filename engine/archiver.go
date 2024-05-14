@@ -117,6 +117,7 @@ func addArchiveDownloaderProcess(runner *gorunner.Runner, set *pcommon.SetJSON) 
 		}
 		if resp.StatusCode == http.StatusNotFound {
 			runner.DisableRetry()
+			fmt.Println(req.URL)
 			return fmt.Errorf("file not found")
 		}
 		if resp.StatusCode != http.StatusOK {

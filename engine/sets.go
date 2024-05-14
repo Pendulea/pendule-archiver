@@ -20,15 +20,9 @@ func (s *WorkingSets) Find(id string) *pcommon.SetJSON {
 
 func (s *WorkingSets) Add(set *pcommon.SetJSON) *pcommon.SetJSON {
 	id := set.Pair.BuildSetID()
-
-	if s.Find(id) != nil {
-		return nil
-	}
-
 	mu.Lock()
 	(*s)[id] = set
 	mu.Unlock()
-
 	return set
 }
 

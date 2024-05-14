@@ -60,10 +60,9 @@ func (e *engine) RefreshSets(currentSets *WorkingSets) {
 	}
 
 	for _, newSet := range newSets {
-		if s := currentSets.Add(&newSet); s != nil {
-			for _, date := range s.Inconsistencies {
-				e.AddDownload(currentSets, s.Pair.BuildSetID(), date)
-			}
+		currentSets.Add(&newSet)
+		for _, date := range newSet.Inconsistencies {
+			e.AddDownload(currentSets, newSet.Pair.BuildSetID(), date)
 		}
 	}
 }
