@@ -147,9 +147,6 @@ func addArchiveDownloaderProcess(runner *gorunner.Runner, set *pcommon.SetJSON) 
 				return nil
 			}
 
-			if n < 100 {
-				fmt.Println(n)
-			}
 			if n > 0 {
 				written, writeErr := outFile.Write(buf[:n])
 				runner.IncrementStatValue(STAT_SIZE_DOWNLOADED, int64(written))
@@ -162,6 +159,10 @@ func addArchiveDownloaderProcess(runner *gorunner.Runner, set *pcommon.SetJSON) 
 			if readErr == io.EOF {
 				break // End of file reached
 			}
+			if n < 100 {
+				fmt.Println(n)
+			}
+
 			if readErr != nil {
 				abort()
 				return readErr

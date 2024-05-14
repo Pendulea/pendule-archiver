@@ -19,6 +19,8 @@ github.com/pendulea/pendule-common v0.2.5 h1:hDMuuPzSuhsBP7f/3DKlhVYVCcoY8y3aJ/H
 github.com/pendulea/pendule-common v0.2.5/go.mod h1:3wzl6/uscSujSjLBBtEZIHliAxfBtQHJRD0toK0o8rg=
 github.com/pendulea/pendule-common v0.2.6 h1:cdBxNib/Kk/gg9p6xvvw5xG7nz6sSl5IOiYWo40JIx4=
 github.com/pendulea/pendule-common v0.2.6/go.mod h1:3wzl6/uscSujSjLBBtEZIHliAxfBtQHJRD0toK0o8rg=
+github.com/pendulea/pendule-common v0.2.7 h1:PmwzaIWzAEd/zLARA2eLhB6UNoxnu+lmjsdH6mQcHi0=
+github.com/pendulea/pendule-common v0.2.7/go.mod h1:3wzl6/uscSujSjLBBtEZIHliAxfBtQHJRD0toK0o8rg=
 github.com/pmezard/go-difflib v1.0.0 h1:4DBwDE0NGyQoBHbLQYPwSUPoCMWR5BEzIk/f1lZbAQM=
 github.com/pmezard/go-difflib v1.0.0/go.mod h1:iKH77koFhYxTK1pcRnkKkqfTogsbg7gZNVY4sRDYZ/4=
 github.com/sirupsen/logrus v1.9.3 h1:dueUQJ1C2q9oE3F7wvmSGAaVtTmUizReu6fjN8uqzbQ=

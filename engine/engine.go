@@ -78,9 +78,8 @@ func (e *engine) AddDownload(activeSets *WorkingSets, setID string, date string)
 	}
 	CountRPCRequests++
 	parsed, err := pcommon.RPC.ParserRequests.IsDateParsed(e.client, pcommon.IsDateParsedRequest{
-		SetID:     set.Pair.BuildSetID(),
-		Date:      date,
-		TimeFrame: pcommon.MIN_TIME_FRAME.Milliseconds(),
+		SetID: set.Pair.BuildSetID(),
+		Date:  date,
 	})
 	if err != nil {
 		log.WithFields(log.Fields{
