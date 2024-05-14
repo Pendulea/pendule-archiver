@@ -24,7 +24,10 @@ func (e *engine) Init() {
 		client.Connect()
 		options := gorunner.NewEngineOptions().
 			SetName("Downloader").
-			SetMaxSimultaneousRunner(SIMULTANEOUS_DOWNLOADS).SetMaxRetry(MAX_RETRY_PER_DOWLOAD_FAILED)
+			SetMaxSimultaneousRunner(SIMULTANEOUS_DOWNLOADS).SetMaxRetry(MAX_RETRY_PER_DOWLOAD_FAILED).
+			SetshouldRunAgain(func(taskID string, lastExecutionTime time.Time) bool {
+				return false
+			})
 		Engine = &engine{
 			Engine: gorunner.NewEngine(options),
 			client: client,
