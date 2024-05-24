@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"math"
 	"net/http"
 	"os"
 	"time"
@@ -18,9 +17,7 @@ const (
 	ARG_VALUE_DATE   = "date"
 	ARG_VALUE_SET_ID = "set_id"
 
-	STAT_LAST_UPDATE     = "last_update"
-	STAT_TOTAL_SIZE      = "total_size"
-	STAT_SIZE_DOWNLOADED = "size_downloaded"
+	STAT_LAST_UPDATE = "last_update"
 )
 
 func buildURL(set *pcommon.SetJSON, date string) string {
@@ -36,9 +33,8 @@ func buildURL(set *pcommon.SetJSON, date string) string {
 }
 
 func autoCancelRequestDetection(runner *gorunner.Runner, abort func()) {
-	fileSize := runner.StatValue(STAT_TOTAL_SIZE)
-	//5kb per second
-	maxWait := time.Duration(fileSize/(1024*10)) * time.Second
+	//10kb per second
+	maxWait := time.Duration(runner.MaxSize()/(MIN_DOWNLOAD_BYTES_PER_SECOND)) * time.Second
 	time.Sleep(maxWait)
 	if !runner.IsDone() {
 		abort()
@@ -48,25 +44,16 @@ func autoCancelRequestDetection(runner *gorunner.Runner, abort func()) {
 func printStatus(runner *gorunner.Runner) {
 
 	if runner.CountSteps() == 1 {
-		startedAt := runner.LastStep()
-		totalSize := runner.StatValue(STAT_TOTAL_SIZE)
-		sizeDownloaded := runner.StatValue(STAT_SIZE_DOWNLOADED)
-		percent := math.Min(float64(sizeDownloaded)/float64(totalSize)*100, 100)
-
-		eta := time.Duration((100 / percent) * float64(time.Since(startedAt)))
-
-		speed := float64(sizeDownloaded) / time.Since(startedAt).Seconds()
-
 		log.WithFields(log.Fields{
 			"rid":      runner.ID,
-			"eta":      pcommon.Format.AccurateHumanize(eta),
-			"speed":    fmt.Sprintf("%s/s", pcommon.Format.LargeBytesToShortString(int64(speed))),
-			"download": fmt.Sprintf("%s/%s", pcommon.Format.LargeBytesToShortString(sizeDownloaded), pcommon.Format.LargeBytesToShortString(totalSize)),
+			"eta":      pcommon.Format.AccurateHumanize(runner.ETA()),
+			"speed":    fmt.Sprintf("%s/s", pcommon.Format.LargeBytesToShortString(int64(runner.SizePerMillisecond()*1000))),
+			"download": fmt.Sprintf("%s/%s", pcommon.Format.LargeBytesToShortString(runner.CurrentSize()), pcommon.Format.LargeBytesToShortString(runner.MaxSize())),
 		}).Info("Downloading...")
 	} else if runner.CountSteps() == 2 {
 		log.WithFields(log.Fields{
 			"rid":  runner.ID,
-			"size": pcommon.Format.LargeBytesToShortString(runner.StatValue(STAT_SIZE_DOWNLOADED)),
+			"size": pcommon.Format.LargeBytesToShortString(runner.MaxSize()),
 			"in":   pcommon.Format.AccurateHumanize(time.Since(runner.StartedAt())),
 		}).Info("Successfully downloaded...")
 	}
@@ -125,7 +112,7 @@ func addArchiveDownloaderProcess(runner *gorunner.Runner, set *pcommon.SetJSON) 
 			return fmt.Errorf("failed to download file status: %s", resp.Status)
 		}
 
-		runner.SetStatValue(STAT_TOTAL_SIZE, int64(resp.ContentLength))
+		runner.SetSizes(-1, int64(resp.ContentLength))
 		go autoCancelRequestDetection(runner, abort)
 		go logInterval(runner)
 
@@ -149,7 +136,7 @@ func addArchiveDownloaderProcess(runner *gorunner.Runner, set *pcommon.SetJSON) 
 
 			if n > 0 {
 				written, writeErr := outFile.Write(buf[:n])
-				runner.IncrementStatValue(STAT_SIZE_DOWNLOADED, int64(written))
+				runner.SetSizes(runner.CurrentSize()+int64(written), -1)
 				runner.SetStatValue(STAT_LAST_UPDATE, time.Now().UnixMilli())
 				if writeErr != nil {
 					abort()

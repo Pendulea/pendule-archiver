@@ -1,7 +1,6 @@
 package engine
 
 import (
-	"fmt"
 	"time"
 
 	"github.com/fantasim/gorunner"
@@ -77,23 +76,8 @@ func (e *engine) AddDownload(activeSets *WorkingSets, setID string, date string)
 		}).Error("Set not found")
 		return
 	}
-	CountRPCRequests++
-	parsed, err := pcommon.RPC.ParserRequests.IsDateParsed(e.client, pcommon.IsDateParsedRequest{
-		SetID: set.Pair.BuildSetID(),
-		Date:  date,
-	})
-	fmt.Println("parsed", parsed, date, set.Pair.BuildSetID())
-	if err != nil {
-		log.WithFields(log.Fields{
-			"symbol": set.Pair.BuildSetID(),
-			"date":   date,
-			"error":  err.Error(),
-		}).Error("Error checking if date is parsed")
-		return
-	}
-	if !parsed {
-		e.Add(buildArchiveDownloader(set, date))
-	}
+
+	e.Add(buildArchiveDownloader(set, date))
 }
 
 func (e *engine) StopSetRunners(setID string) {
