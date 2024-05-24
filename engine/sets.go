@@ -18,7 +18,7 @@ func (s *WorkingSets) Find(id string) *pcommon.SetJSON {
 	return v
 }
 
-func (s *WorkingSets) Add(set *pcommon.SetJSON) *pcommon.SetJSON {
+func (s *WorkingSets) Update(set *pcommon.SetJSON) *pcommon.SetJSON {
 	id := set.Pair.BuildSetID()
 	mu.Lock()
 	(*s)[id] = set

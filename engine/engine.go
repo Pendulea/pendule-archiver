@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/fantasim/gorunner"
@@ -60,9 +61,9 @@ func (e *engine) RefreshSets(currentSets *WorkingSets) {
 	}
 
 	for _, newSet := range newSets {
-		currentSets.Add(&newSet)
-		for _, date := range newSet.Inconsistencies {
-			e.AddDownload(currentSets, newSet.Pair.BuildSetID(), date)
+		set := currentSets.Update(&newSet)
+		for _, date := range set.Inconsistencies {
+			e.AddDownload(currentSets, set.Pair.BuildSetID(), date)
 		}
 	}
 }
@@ -81,6 +82,7 @@ func (e *engine) AddDownload(activeSets *WorkingSets, setID string, date string)
 		SetID: set.Pair.BuildSetID(),
 		Date:  date,
 	})
+	fmt.Println("parsed", parsed, date, set.Pair.BuildSetID())
 	if err != nil {
 		log.WithFields(log.Fields{
 			"symbol": set.Pair.BuildSetID(),
