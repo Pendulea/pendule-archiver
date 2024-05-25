@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"sync"
 	"time"
 
 	"github.com/fantasim/gorunner"
@@ -13,7 +14,9 @@ var CountRPCRequests = 0
 
 type engine struct {
 	*gorunner.Engine
-	client *pcommon.RPCClient
+	client     *pcommon.RPCClient
+	activeSets map[string]pcommon.SetJSON
+	mu         sync.RWMutex
 }
 
 func (e *engine) Init() {
@@ -28,15 +31,27 @@ func (e *engine) Init() {
 				return false
 			})
 		Engine = &engine{
-			Engine: gorunner.NewEngine(options),
-			client: client,
+			Engine:     gorunner.NewEngine(options),
+			client:     client,
+			activeSets: make(map[string]pcommon.SetJSON),
+			mu:         sync.RWMutex{},
 		}
 	}
 }
 
-func (e *engine) RefreshSets(currentSets *WorkingSets) {
+func (e *engine) GetSets() map[string]pcommon.SetJSON {
+	mapCopy := make(map[string]pcommon.SetJSON)
+	e.mu.RLock()
+	for k, v := range e.activeSets {
+		mapCopy[k] = v
+	}
+	e.mu.RUnlock()
+	return mapCopy
+}
+
+func (e *engine) RefreshSets() {
 	CountRPCRequests++
-	newSets, err := pcommon.RPC.ParserRequests.FetchAvailablePairSetList(e.client)
+	setList, err := pcommon.RPC.ParserRequests.FetchAvailablePairSetList(e.client)
 	if err != nil {
 		log.WithFields(log.Fields{
 			"error": err.Error(),
@@ -44,39 +59,35 @@ func (e *engine) RefreshSets(currentSets *WorkingSets) {
 		return
 	}
 
-	for id := range *currentSets {
+	for id := range e.GetSets() {
 		found := false
-		for _, newSet := range newSets {
+		for _, newSet := range setList {
 			if newSet.Pair.BuildSetID() == id {
 				found = true
 				break
 			}
 		}
 		if !found {
-			currentSets.Remove(id)
 			e.StopSetRunners(id)
 		}
 	}
 
-	for _, newSet := range newSets {
-		set := currentSets.Update(&newSet)
+	newSets := make(map[string]pcommon.SetJSON)
+	for _, set := range setList {
+		newSets[set.Pair.BuildSetID()] = set
+	}
+	e.mu.Lock()
+	e.activeSets = newSets
+	for _, set := range e.activeSets {
 		for _, date := range set.Inconsistencies {
-			e.AddDownload(currentSets, set.Pair.BuildSetID(), date)
+			e.AddDownload(set, date)
 		}
 	}
+	e.mu.Unlock()
 }
 
-func (e *engine) AddDownload(activeSets *WorkingSets, setID string, date string) {
-	set := activeSets.Find(setID)
-	if set == nil {
-		log.WithFields(log.Fields{
-			"symbol": setID,
-			"date":   date,
-		}).Error("Set not found")
-		return
-	}
-
-	e.Add(buildArchiveDownloader(set, date))
+func (e *engine) AddDownload(set pcommon.SetJSON, date string) {
+	e.Add(buildArchiveDownloader(set.Pair.BuildSetID(), date))
 }
 
 func (e *engine) StopSetRunners(setID string) {
@@ -84,4 +95,8 @@ func (e *engine) StopSetRunners(setID string) {
 		ARG_VALUE_SET_ID: setID,
 	}
 	e.StopRunnersByArgs(args)
+	runnings := e.ListRunningByArgs(args)
+	for _, runner := range runnings {
+		runner.Interrupt()
+	}
 }

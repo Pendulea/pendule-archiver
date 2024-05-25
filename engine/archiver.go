@@ -20,7 +20,7 @@ const (
 	STAT_LAST_UPDATE = "last_update"
 )
 
-func buildURL(set *pcommon.SetJSON, date string) string {
+func buildURL(set pcommon.SetJSON, date string) string {
 	if set.Pair.IsBinanceValid() {
 		symbol := set.Pair.BuildBinanceSymbol()
 		filename := fmt.Sprintf("%s-trades-%s.zip", symbol, date)
@@ -67,11 +67,18 @@ func logInterval(runner *gorunner.Runner) {
 	}
 }
 
-func addArchiveDownloaderProcess(runner *gorunner.Runner, set *pcommon.SetJSON) {
+func addArchiveDownloaderProcess(runner *gorunner.Runner) {
 
 	runner.AddProcess(func() error {
 
 		date, _ := gorunner.GetArg[string](runner.Args, ARG_VALUE_DATE)
+		setID, _ := gorunner.GetArg[string](runner.Args, ARG_VALUE_SET_ID)
+
+		set, ok := Engine.GetSets()[setID]
+		if !ok {
+			fmt.Println("set not found")
+			return nil
+		}
 
 		url := buildURL(set, date)
 		outputFilePath := set.Pair.BuildArchivesFilePath(date, "zip")
@@ -163,12 +170,12 @@ func addArchiveDownloaderProcess(runner *gorunner.Runner, set *pcommon.SetJSON) 
 	})
 }
 
-func buildArchiveDownloader(set *pcommon.SetJSON, date string) *gorunner.Runner {
-	runner := gorunner.NewRunner("dl-" + set.Pair.BuildSetID() + "-" + date)
+func buildArchiveDownloader(setID string, date string) *gorunner.Runner {
+	runner := gorunner.NewRunner("dl-" + setID + "-" + date)
 
 	runner.Task.AddArgs(ARG_VALUE_DATE, date)
-	runner.Task.AddArgs(ARG_VALUE_SET_ID, set.Pair.BuildSetID())
+	runner.Task.AddArgs(ARG_VALUE_SET_ID, setID)
 
-	addArchiveDownloaderProcess(runner, set)
+	addArchiveDownloaderProcess(runner)
 	return runner
 }

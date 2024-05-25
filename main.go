@@ -12,8 +12,6 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-var activeSets = make(engine.WorkingSets)
-
 func initLogger() {
 	// Log as JSON instead of the default ASCII formatter.
 	log.SetFormatter(&log.TextFormatter{
@@ -52,7 +50,7 @@ func main() {
 
 	go func() {
 		for {
-			engine.Engine.RefreshSets(&activeSets)
+			engine.Engine.RefreshSets()
 			time.Sleep(time.Minute)
 		}
 	}()
