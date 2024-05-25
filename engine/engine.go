@@ -18,7 +18,6 @@ type engine struct {
 
 func (e *engine) Init() {
 	if Engine == nil {
-
 		url := "ws://localhost:" + pcommon.Env.PARSER_SERVER_PORT + "/"
 		client := pcommon.RPC.NewClient(url, time.Second*2, true)
 		client.Connect()

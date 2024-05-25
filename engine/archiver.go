@@ -34,7 +34,7 @@ func buildURL(set *pcommon.SetJSON, date string) string {
 
 func autoCancelRequestDetection(runner *gorunner.Runner, abort func()) {
 	//10kb per second
-	maxWait := time.Duration(runner.MaxSize()/(MIN_DOWNLOAD_BYTES_PER_SECOND)) * time.Second
+	maxWait := time.Duration(runner.Size().Max()/(MIN_DOWNLOAD_BYTES_PER_SECOND)) * time.Second
 	time.Sleep(maxWait)
 	if !runner.IsDone() {
 		abort()
@@ -48,13 +48,13 @@ func printStatus(runner *gorunner.Runner) {
 			"rid":      runner.ID,
 			"eta":      pcommon.Format.AccurateHumanize(runner.ETA()),
 			"speed":    fmt.Sprintf("%s/s", pcommon.Format.LargeBytesToShortString(int64(runner.SizePerMillisecond()*1000))),
-			"download": fmt.Sprintf("%s/%s", pcommon.Format.LargeBytesToShortString(runner.CurrentSize()), pcommon.Format.LargeBytesToShortString(runner.MaxSize())),
+			"download": fmt.Sprintf("%s/%s", pcommon.Format.LargeBytesToShortString(runner.Size().Current()), pcommon.Format.LargeBytesToShortString(runner.Size().Max())),
 		}).Info("Downloading...")
 	} else if runner.CountSteps() == 2 {
 		log.WithFields(log.Fields{
 			"rid":  runner.ID,
-			"size": pcommon.Format.LargeBytesToShortString(runner.MaxSize()),
-			"in":   pcommon.Format.AccurateHumanize(time.Since(runner.StartedAt())),
+			"size": pcommon.Format.LargeBytesToShortString(runner.Size().Max()),
+			"in":   pcommon.Format.AccurateHumanize(runner.Timer()),
 		}).Info("Successfully downloaded...")
 	}
 }
@@ -72,6 +72,7 @@ func addArchiveDownloaderProcess(runner *gorunner.Runner, set *pcommon.SetJSON) 
 	runner.AddProcess(func() error {
 
 		date, _ := gorunner.GetArg[string](runner.Args, ARG_VALUE_DATE)
+
 		url := buildURL(set, date)
 		outputFilePath := set.Pair.BuildArchivesFilePath(date, "zip")
 
@@ -112,7 +113,7 @@ func addArchiveDownloaderProcess(runner *gorunner.Runner, set *pcommon.SetJSON) 
 			return fmt.Errorf("failed to download file status: %s", resp.Status)
 		}
 
-		runner.SetSizes(-1, int64(resp.ContentLength))
+		runner.SetSize().Max(int64(resp.ContentLength))
 		go autoCancelRequestDetection(runner, abort)
 		go logInterval(runner)
 
@@ -136,7 +137,7 @@ func addArchiveDownloaderProcess(runner *gorunner.Runner, set *pcommon.SetJSON) 
 
 			if n > 0 {
 				written, writeErr := outFile.Write(buf[:n])
-				runner.SetSizes(runner.CurrentSize()+int64(written), -1)
+				runner.SetSize().Current(runner.Size().Current() + int64(written))
 				runner.SetStatValue(STAT_LAST_UPDATE, time.Now().UnixMilli())
 				if writeErr != nil {
 					abort()
