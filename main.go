@@ -29,7 +29,7 @@ func initLogger() {
 }
 
 func cleanup() {
-	engine.Engine.StopAll()
+	engine.Engine.Quit()
 }
 
 func main() {

@@ -91,12 +91,7 @@ func (e *engine) AddDownload(set pcommon.SetJSON, date string) {
 }
 
 func (e *engine) StopSetRunners(setID string) {
-	args := map[string]interface{}{
+	e.CancelRunnersByArgs(map[string]interface{}{
 		ARG_VALUE_SET_ID: setID,
-	}
-	e.StopRunnersByArgs(args)
-	runnings := e.ListRunningByArgs(args)
-	for _, runner := range runnings {
-		runner.Interrupt()
-	}
+	})
 }

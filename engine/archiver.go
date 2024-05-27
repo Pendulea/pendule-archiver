@@ -144,7 +144,7 @@ func addArchiveDownloaderProcess(runner *gorunner.Runner) {
 
 			if n > 0 {
 				written, writeErr := outFile.Write(buf[:n])
-				runner.SetSize().Current(runner.Size().Current() + int64(written))
+				runner.SetSize().Current(int64(written), true)
 				runner.SetStatValue(STAT_LAST_UPDATE, time.Now().UnixMilli())
 				if writeErr != nil {
 					abort()

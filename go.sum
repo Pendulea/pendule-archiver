@@ -11,6 +11,8 @@ github.com/fantasim/gorunner v0.1.9 h1:hNFt5eDJ+L6rOwAjUD9PQuhsukwfUUj4e2QVU9TQe
 github.com/fantasim/gorunner v0.1.9/go.mod h1:uv6FLGIiz8o9KLNDXBIhAWL54FwXlCXOtTCQyi1nMPQ=
 github.com/fantasim/gorunner v0.2.0 h1:MJMozdAYEZL4EbUUNKG44dL5KQmgVBuTlOBw7V8yNDM=
 github.com/fantasim/gorunner v0.2.0/go.mod h1:uv6FLGIiz8o9KLNDXBIhAWL54FwXlCXOtTCQyi1nMPQ=
+github.com/fantasim/gorunner v0.2.8 h1:wPf/qsB6DVY52KgiDGssyXRa97BlAP/YyAznR0cT8nQ=
+github.com/fantasim/gorunner v0.2.8/go.mod h1:7uIvNoKnmDFhII6ZCjQJsaYZp0aWLBKO72bOD8Ejapo=
 github.com/fsnotify/fsnotify v1.7.0 h1:8JEhPFa5W2WU7YfeZzPNqzMP6Lwt7L2715Ggo0nosvA=
 github.com/fsnotify/fsnotify v1.7.0/go.mod h1:40Bi/Hjc2AVfZrqy+aj+yEI+/bRxZnMJyTJwOpGvigM=
 github.com/gorilla/websocket v1.5.1 h1:gmztn0JnHVt9JZquRuzLw3g4wouNVzKL15iLr/zn/QY=
