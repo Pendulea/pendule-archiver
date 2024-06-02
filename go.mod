@@ -3,8 +3,8 @@ module github.com/pendulea/pendule-archiver
 go 1.19
 
 require (
-	github.com/fantasim/gorunner v0.2.8
-	github.com/pendulea/pendule-common v0.3.4
+	github.com/fantasim/gorunner v0.3.1
+	github.com/pendulea/pendule-common v0.6.1
 	github.com/sirupsen/logrus v1.9.3
 )
 

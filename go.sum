@@ -13,6 +13,8 @@ github.com/fantasim/gorunner v0.2.0 h1:MJMozdAYEZL4EbUUNKG44dL5KQmgVBuTlOBw7V8yN
 github.com/fantasim/gorunner v0.2.0/go.mod h1:uv6FLGIiz8o9KLNDXBIhAWL54FwXlCXOtTCQyi1nMPQ=
 github.com/fantasim/gorunner v0.2.8 h1:wPf/qsB6DVY52KgiDGssyXRa97BlAP/YyAznR0cT8nQ=
 github.com/fantasim/gorunner v0.2.8/go.mod h1:7uIvNoKnmDFhII6ZCjQJsaYZp0aWLBKO72bOD8Ejapo=
+github.com/fantasim/gorunner v0.3.1 h1:FJZUmwRPwD7nKPzuscekaPwSFIVAD7mPkp7hcP7exYY=
+github.com/fantasim/gorunner v0.3.1/go.mod h1:7uIvNoKnmDFhII6ZCjQJsaYZp0aWLBKO72bOD8Ejapo=
 github.com/fsnotify/fsnotify v1.7.0 h1:8JEhPFa5W2WU7YfeZzPNqzMP6Lwt7L2715Ggo0nosvA=
 github.com/fsnotify/fsnotify v1.7.0/go.mod h1:40Bi/Hjc2AVfZrqy+aj+yEI+/bRxZnMJyTJwOpGvigM=
 github.com/gorilla/websocket v1.5.1 h1:gmztn0JnHVt9JZquRuzLw3g4wouNVzKL15iLr/zn/QY=
@@ -31,6 +33,16 @@ github.com/pendulea/pendule-common v0.3.3 h1:hzo9l+L4B4QBDqi09m9rjg6YDlLyikAMIHi
 github.com/pendulea/pendule-common v0.3.3/go.mod h1:3wzl6/uscSujSjLBBtEZIHliAxfBtQHJRD0toK0o8rg=
 github.com/pendulea/pendule-common v0.3.4 h1:QPPne28h4Wg56pllJyztPOeRl4ykFfs3Ce0dIEkL2qA=
 github.com/pendulea/pendule-common v0.3.4/go.mod h1:3wzl6/uscSujSjLBBtEZIHliAxfBtQHJRD0toK0o8rg=
+github.com/pendulea/pendule-common v0.4.7 h1:Y8edHyThnlkxwd93K13rNl33t5s9v2B+atBCwJ9Gyhw=
+github.com/pendulea/pendule-common v0.4.7/go.mod h1:3wzl6/uscSujSjLBBtEZIHliAxfBtQHJRD0toK0o8rg=
+github.com/pendulea/pendule-common v0.4.8 h1:AMIwbmJpoeRYSKB9DzpgAX/UnAFW2asFsHxM1p/060g=
+github.com/pendulea/pendule-common v0.4.8/go.mod h1:3wzl6/uscSujSjLBBtEZIHliAxfBtQHJRD0toK0o8rg=
+github.com/pendulea/pendule-common v0.5.1 h1:y24AEdiv74vKj3gkUZqra2ZCrMYWl2qMeGMynhW9yDU=
+github.com/pendulea/pendule-common v0.5.1/go.mod h1:3wzl6/uscSujSjLBBtEZIHliAxfBtQHJRD0toK0o8rg=
+github.com/pendulea/pendule-common v0.5.9 h1:aE4jG9y7EahUDSOwnDqcFc+ERLWRFtcZW7ihKGTiyiM=
+github.com/pendulea/pendule-common v0.5.9/go.mod h1:3wzl6/uscSujSjLBBtEZIHliAxfBtQHJRD0toK0o8rg=
+github.com/pendulea/pendule-common v0.6.1 h1:bIqzlBBUhpl1fylbzoeUocwo3jwO4Yy6hGQcAUF+qbs=
+github.com/pendulea/pendule-common v0.6.1/go.mod h1:3wzl6/uscSujSjLBBtEZIHliAxfBtQHJRD0toK0o8rg=
 github.com/pmezard/go-difflib v1.0.0 h1:4DBwDE0NGyQoBHbLQYPwSUPoCMWR5BEzIk/f1lZbAQM=
 github.com/pmezard/go-difflib v1.0.0/go.mod h1:iKH77koFhYxTK1pcRnkKkqfTogsbg7gZNVY4sRDYZ/4=
 github.com/sirupsen/logrus v1.9.3 h1:dueUQJ1C2q9oE3F7wvmSGAaVtTmUizReu6fjN8uqzbQ=

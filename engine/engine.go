@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"strings"
 	"sync"
 	"time"
 
@@ -76,17 +77,26 @@ func (e *engine) RefreshSets() {
 	for _, set := range setList {
 		newSets[set.Pair.BuildSetID()] = set
 	}
+
 	e.mu.Lock()
 	e.activeSets = newSets
 	for _, set := range e.activeSets {
-		for _, date := range set.Inconsistencies {
-			e.AddDownload(set, date)
+		min := set.Pair.MinHistoricalDay
+		max := pcommon.Format.BuildDateStr(MIN_DAY_BACKWARDS_FOR_CONSISTENCY)
+		for strings.Compare(min, max) <= 0 {
+			e.AddDownload(set, min)
+			t, _ := pcommon.Format.StrDateToDate(min)
+			min = pcommon.Format.FormatDateStr(t.Add(time.Hour * 24))
 		}
 	}
 	e.mu.Unlock()
 }
 
 func (e *engine) AddDownload(set pcommon.SetJSON, date string) {
+	if strings.Compare(date, set.Pair.MinHistoricalDay) < 0 {
+		return
+	}
+
 	e.Add(buildArchiveDownloader(set.Pair.BuildSetID(), date))
 }
 
