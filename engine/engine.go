@@ -82,7 +82,7 @@ func (e *engine) RefreshSets() {
 	e.activeSets = newSets
 	for _, set := range e.activeSets {
 		min := set.Pair.MinHistoricalDay
-		max := pcommon.Format.BuildDateStr(MIN_DAY_BACKWARDS_FOR_CONSISTENCY)
+		max := pcommon.Format.BuildDateStr(pcommon.Env.MAX_DAYS_BACKWARD_FOR_CONSISTENCY)
 		for strings.Compare(min, max) <= 0 {
 			e.AddDownload(set, min)
 			t, _ := pcommon.Format.StrDateToDate(min)
