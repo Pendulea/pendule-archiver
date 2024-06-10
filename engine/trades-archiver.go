@@ -17,6 +17,7 @@ import (
 
 const TRADE_TYPE = "trades"
 const BOOK_DEPTH_TYPE = "book_depth"
+const METRICS_TYPE = "metrics"
 
 const (
 	ARG_VALUE_DATE   = "date"
@@ -194,6 +195,9 @@ func addArchiveDownloaderProcess(runner *gorunner.Runner) {
 						} else if title == BOOK_DEPTH_TYPE {
 							csvPath = set.Pair.BuildBookDepthArchivesFilePath(date, "csv")
 							zipPath = set.Pair.BuildBookDepthArchivesFilePath(date, "zip")
+						} else if title == METRICS_TYPE {
+							csvPath = set.Pair.BuildFuturesMetricsArchivesFilePath(date, "csv")
+							zipPath = set.Pair.BuildFuturesMetricsArchivesFilePath(date, "zip")
 						} else {
 							log.Fatal("Unknown title")
 						}
@@ -244,6 +248,15 @@ func addArchiveDownloaderProcess(runner *gorunner.Runner) {
 				BOOK_DEPTH_TYPE); err != nil {
 				return err
 			}
+
+			if err := doTheTask(set.Pair.MinFuturesMetricsHistoricalDay,
+				set.Pair.BuildBinanceFuturesMetricsArchiveURL(date),
+				set.Pair.BuildBinanceFuturesMetricsArchiveURL(set.Pair.MinFuturesMetricsHistoricalDay),
+				set.Pair.BuildFuturesMetricsArchivesFilePath(date, "zip"),
+				METRICS_TYPE); err != nil {
+				return err
+			}
+
 		}
 
 		return doTheTask(set.Pair.MinHistoricalDay,
