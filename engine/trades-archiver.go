@@ -185,7 +185,11 @@ func addArchiveDownloaderProcess(runner *gorunner.Runner) {
 					Engine.Pause(TIMEBREAK_AFTER_TOO_MANY_REQUESTS)
 				}
 				if strings.Contains(err.Error(), "file not found") {
-					if checkRouteIsValid() {
+					sevenDaysAgo := pcommon.Format.BuildDateStr(4)
+					if strings.Compare(sevenDaysAgo, date) <= 0 {
+						runner.DisableRetry()
+						return err
+					} else if checkRouteIsValid() {
 						var csvPath string
 						var zipPath string
 
