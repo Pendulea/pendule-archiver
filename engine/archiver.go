@@ -1,0 +1,333 @@
+package engine
+
+import (
+	"encoding/csv"
+	"fmt"
+	"io"
+	"os"
+	"path/filepath"
+	"strings"
+	"time"
+
+	"github.com/samber/lo"
+	log "github.com/sirupsen/logrus"
+
+	"github.com/fantasim/gorunner"
+	pcommon "github.com/pendulea/pendule-common"
+)
+
+func addArchiveFragmenterProcess(runner *gorunner.Runner) {
+	runner.AddProcess(func() error {
+		date, _ := gorunner.GetArg[string](runner.Args, ARG_VALUE_DATE)
+		set, _ := gorunner.GetArg[*pcommon.SetJSON](runner.Args, ARG_VALUE_SET)
+		t, _ := gorunner.GetArg[ArchiveType](runner.Args, ARG_VALUE_ARCHIVE_TYPE)
+
+		archivePath := t.GetArchiveZipPath(date, set)
+
+		stat, err := os.Stat(archivePath)
+		if err != nil && !os.IsNotExist(err) {
+			return err
+		}
+		if err != nil && os.IsNotExist(err) {
+			return nil
+		}
+		if stat.ModTime().Add(time.Minute * 2).After(time.Now()) {
+			return nil
+		}
+
+		tree, ok := ArchivesIndex[t]
+		if !ok {
+			return fmt.Errorf("archive tree not found")
+		}
+		countFound := 0
+		for _, col := range tree.Columns {
+			if _, err := os.Stat(set.Settings.BuildArchiveFilePath(col.Asset, date, "zip")); err == nil {
+				countFound++
+			}
+		}
+		if countFound == len(tree.Columns) {
+			return nil
+		}
+
+		logData := struct {
+			step  int
+			asset pcommon.AssetType
+			i     int
+			total int
+		}{
+			step:  0,
+			asset: pcommon.AssetType(""),
+			i:     0,
+			total: 0,
+		}
+
+		logPlease := func() {
+			step, asset, i, total := logData.step, logData.asset, logData.i, logData.total
+
+			if step == 0 {
+				log.WithFields(log.Fields{
+					"size": pcommon.Format.LargeBytesToShortString(stat.Size()),
+				}).Info(fmt.Sprintf("Unzipping %s (%s) archive (%s)", t, date, set.Settings.IDString()))
+			} else if step == 1 {
+				log.WithFields(log.Fields{
+					"size": pcommon.Format.LargeBytesToShortString(int64(float64(stat.Size()) * 5.133)),
+				}).Info(fmt.Sprintf("Parsing %s (%s) archive (%s)", t, date, set.Settings.IDString()))
+			} else if step == 2 {
+				if total == i {
+					log.WithFields(log.Fields{}).Info(fmt.Sprintf("Zipping %s (%s) assets (%s)", t, date, set.Settings.IDString()))
+				} else {
+					p := float64(i) / float64(total) * 100
+					log.WithFields(log.Fields{
+						"progress": fmt.Sprintf("%.2f%%", p),
+					}).Info(fmt.Sprintf("Building %s (%s) asset (%s)", asset, date, set.Settings.IDString()))
+				}
+			} else if step == 3 {
+				log.WithFields(log.Fields{}).Info(fmt.Sprintf("Successfully built %s (%s) asset (%s)", asset, date, set.Settings.IDString()))
+			}
+		}
+
+		go func() {
+			time.Sleep(time.Second * 2)
+			for !runner.IsDone() {
+				logPlease()
+				time.Sleep(time.Second * 5)
+			}
+		}()
+
+		archiveExt := filepath.Ext(archivePath)
+		archiveDir := strings.Replace(archivePath, archiveExt, "", 1)
+		if archiveExt == ".zip" {
+			defer os.Remove(archiveDir + ".csv")
+			defer os.RemoveAll(archiveDir)
+
+			err := pcommon.File.UnzipFile(archivePath, archiveDir)
+			if err != nil {
+				if err.Error() == "zip: not a valid zip file" {
+					os.Remove(archivePath)
+				}
+				return err
+			}
+			listCSVFiles, err := os.ReadDir(archiveDir)
+			if err != nil {
+				return err
+			}
+			list := lo.Filter(listCSVFiles, func(f os.DirEntry, idx int) bool {
+				return filepath.Ext(f.Name()) == ".csv"
+			})
+			if len(list) != 1 {
+				return fmt.Errorf("invalid number of csv files")
+			}
+			if err := os.Rename(filepath.Join(archiveDir, list[0].Name()), archiveDir+".csv"); err != nil {
+				return err
+			}
+		} else if archiveExt != ".csv" {
+			return fmt.Errorf("invalid extension")
+		}
+
+		logData.step = 1
+		lines, headerXY, err := ParseFromCSV(archiveDir + ".csv")
+		if err != nil {
+			return err
+		}
+		logData.total = len(lines)
+
+		computedTimes := make([]string, len(lines))
+		timeTitle := strings.ToLower(tree.Time.OriginColumnTitle)
+
+		for i, line := range lines {
+			done := false
+			if timeTitle != "" {
+				if idx, ok := headerXY[timeTitle]; ok {
+					computedTimes[i] = tree.Time.DataFilter(line[idx], line)
+					done = true
+				}
+			}
+			if !done && tree.Time.OriginColumnIndex >= 0 {
+				computedTimes[i] = tree.Time.DataFilter(line[tree.Time.OriginColumnIndex], line)
+				done = true
+			}
+
+			if !done {
+				return fmt.Errorf("can't find the column")
+			}
+		}
+
+		filesToRM := []string{}
+		rmAllFiles := func() {
+			for _, f := range filesToRM {
+				os.Remove(f)
+			}
+		}
+
+		for _, col := range tree.Columns {
+			logData.step = 2
+			logData.asset = col.Asset
+
+			csvFilePath := set.Settings.BuildArchiveFilePath(col.Asset, date, "csv")
+			zipFilePath := set.Settings.BuildArchiveFilePath(col.Asset, date, "zip")
+
+			filesToRM = append(filesToRM, csvFilePath, zipFilePath)
+
+			if err := pcommon.File.EnsureDir(filepath.Dir(csvFilePath)); err != nil {
+				rmAllFiles()
+				return err
+			}
+
+			file, err := os.Create(csvFilePath)
+			if err != nil && os.IsExist(err) {
+				continue
+			}
+			if err != nil {
+				rmAllFiles()
+				return err
+			}
+			writer := csv.NewWriter(file)
+			//write header
+			if err := writer.Write([]string{"time", string(col.Asset)}); err != nil {
+				rmAllFiles()
+				return err
+			}
+
+			colTitle := strings.ToLower(col.OriginColumnTitle)
+
+			for idx, line := range lines {
+				logData.i = idx + 1
+				value := ""
+				if colTitle != "" {
+					if idx, ok := headerXY[colTitle]; ok {
+						value = col.DataFilter(line[idx], line)
+					}
+				}
+				if value == "" && col.OriginColumnIndex >= 0 {
+					value = col.DataFilter(line[col.OriginColumnIndex], line)
+				}
+
+				if value == "" {
+					rmAllFiles()
+					return fmt.Errorf("can't find the column")
+				}
+
+				if err := writer.Write([]string{computedTimes[idx], value}); err != nil {
+					rmAllFiles()
+					return err
+				}
+			}
+
+			writer.Flush()
+			if err := file.Close(); err != nil {
+				rmAllFiles()
+				return err
+			}
+			if err := pcommon.File.ZipFile(csvFilePath, zipFilePath); err != nil {
+				rmAllFiles()
+				return err
+			}
+
+			os.Remove(csvFilePath)
+			logData.step = 3
+			logPlease()
+		}
+
+		return nil
+	})
+}
+
+func buildArchiveFragmenter(date string, set *pcommon.SetJSON, t ArchiveType) *gorunner.Runner {
+
+	id := fmt.Sprintf("frag-%s-%s-%s", set.Settings.IDString(), date, string(t))
+	runner := gorunner.NewRunner(id)
+
+	runner.AddArgs(ARG_VALUE_DATE, date)
+	runner.AddArgs(ARG_VALUE_SET, set)
+	runner.AddArgs(ARG_VALUE_ARCHIVE_TYPE, t)
+
+	addArchiveFragmenterProcess(runner)
+
+	runner.AddRunningFilter(func(details gorunner.EngineDetails, runner *gorunner.Runner) bool {
+		date, _ := gorunner.GetArg[string](runner.Args, ARG_VALUE_DATE)
+		set, _ := gorunner.GetArg[*pcommon.SetJSON](runner.Args, ARG_VALUE_SET)
+		t, _ := gorunner.GetArg[ArchiveType](runner.Args, ARG_VALUE_ARCHIVE_TYPE)
+
+		for _, r := range details.RunningRunners {
+			date2, _ := gorunner.GetArg[string](r.Args, ARG_VALUE_DATE)
+			set2, _ := gorunner.GetArg[*pcommon.SetJSON](r.Args, ARG_VALUE_SET)
+			t2, _ := gorunner.GetArg[ArchiveType](r.Args, ARG_VALUE_ARCHIVE_TYPE)
+
+			if date == date2 && set.Settings.IDString() == set2.Settings.IDString() && t == t2 {
+				return false
+			}
+		}
+		return true
+	})
+
+	return runner
+}
+
+func ParseFromCSV(fp string) ([][]string, map[string]int, error) {
+	headerCoord := map[string]int{}
+
+	file, err := os.Open(fp)
+	if err != nil {
+		return nil, headerCoord, err
+	}
+	defer file.Close()
+
+	reader := csv.NewReader(file)
+	reader.Comma = ',' // Set the delimiter to comma
+	reader.TrimLeadingSpace = true
+
+	var lines [][]string
+
+	// Check if the CSV is empty
+	firstRow, err := reader.Read()
+	if err == io.EOF {
+		// CSV is empty, return an empty slice
+		return lines, headerCoord, nil
+	}
+	if err != nil {
+		return nil, headerCoord, err
+	}
+
+	// Determine if the first row is a header or a data row
+	if isHeader(firstRow) {
+
+		for idx, field := range firstRow {
+			headerCoord[strings.ToLower(field)] = idx
+		}
+
+		// Read the next row if the first row is a header
+		firstRow, err = reader.Read()
+		if err == io.EOF {
+			// CSV only contains a header, return an empty slice
+			return lines, headerCoord, nil
+		}
+		if err != nil {
+			return nil, headerCoord, err
+		}
+	}
+
+	lines = append(lines, firstRow)
+
+	for {
+		fields, err := reader.Read()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return nil, headerCoord, err
+		}
+
+		lines = append(lines, fields)
+	}
+	return lines, headerCoord, nil
+}
+
+// Example function to determine if a row is a header
+func isHeader(row []string) bool {
+	for _, field := range row {
+		if strings.Contains(strings.ToLower(field), "time") || strings.Contains(strings.ToLower(field), "date") || strings.Contains(strings.ToLower(field), "id") {
+			return true
+		}
+	}
+	return false
+}
