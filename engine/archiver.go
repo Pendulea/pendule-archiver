@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -116,12 +117,13 @@ func addArchiveFragmenterProcess(runner *gorunner.Runner) {
 
 		for i, line := range lines {
 			done := false
+			var err error = nil
 			if timeTitle != "" {
 				if idx, ok := headerXY[timeTitle]; ok {
 					if tree.Time.DataFilter == nil {
 						computedTimes[i] = line[idx]
 					} else {
-						computedTimes[i] = tree.Time.DataFilter(line[idx], line, headerXY)
+						computedTimes[i], err = tree.Time.DataFilter(line[idx], line, headerXY)
 					}
 					done = true
 				}
@@ -130,9 +132,13 @@ func addArchiveFragmenterProcess(runner *gorunner.Runner) {
 				if tree.Time.DataFilter == nil {
 					computedTimes[i] = line[tree.Time.OriginColumnIndex]
 				} else {
-					computedTimes[i] = tree.Time.DataFilter(line[tree.Time.OriginColumnIndex], line, headerXY)
+					computedTimes[i], err = tree.Time.DataFilter(line[tree.Time.OriginColumnIndex], line, headerXY)
 				}
 				done = true
+			}
+
+			if err != nil {
+				return err
 			}
 
 			if !done {
@@ -147,7 +153,14 @@ func addArchiveFragmenterProcess(runner *gorunner.Runner) {
 			}
 		}
 
+		var assetJSON *pcommon.AssetJSON = nil
 		for _, col := range tree.Columns {
+			for _, asset := range set.Assets {
+				if asset.ID == col.Asset {
+					assetJSON = &asset
+					break
+				}
+			}
 			logData.step = 2
 			logData.asset = col.Asset
 
@@ -170,6 +183,7 @@ func addArchiveFragmenterProcess(runner *gorunner.Runner) {
 				return err
 			}
 			writer := csv.NewWriter(file)
+
 			//write header
 			if err := writer.Write([]string{string(pcommon.ColumnType.TIME), string(col.Asset)}); err != nil {
 				rmAllFiles()
@@ -181,31 +195,49 @@ func addArchiveFragmenterProcess(runner *gorunner.Runner) {
 			for idx, line := range lines {
 				logData.i = idx + 1
 				value := ""
+				found := false
+				var err error = nil
+
 				if colTitle != "" {
 					if idx, ok := headerXY[colTitle]; ok {
 						if col.DataFilter == nil {
 							value = line[idx]
 						} else {
-							value = col.DataFilter(line[idx], line, headerXY)
+							value, err = col.DataFilter(line[idx], line, headerXY)
 						}
+						found = true
 					}
 				}
-				if value == "" && col.OriginColumnIndex >= 0 {
+				if !found && col.OriginColumnIndex >= 0 {
 					if col.DataFilter == nil {
 						value = line[col.OriginColumnIndex]
 					} else {
-						value = col.DataFilter(line[col.OriginColumnIndex], line, headerXY)
+						value, err = col.DataFilter(line[col.OriginColumnIndex], line, headerXY)
 					}
+					found = true
 				}
 
-				if value == "" {
+				if err != nil {
+					rmAllFiles()
+					return err
+				}
+
+				if !found {
 					rmAllFiles()
 					return fmt.Errorf("can't find the column")
 				}
 
-				if err := writer.Write([]string{computedTimes[idx], value}); err != nil {
-					rmAllFiles()
-					return err
+				value = strings.TrimSpace(value)
+				if len(value) > 0 {
+					if assetJSON != nil {
+						if v, err := strconv.ParseFloat(value, 64); err == nil {
+							value = pcommon.Format.Float(v, assetJSON.Precision)
+						}
+					}
+					if err := writer.Write([]string{strings.TrimSpace(computedTimes[idx]), value}); err != nil {
+						rmAllFiles()
+						return err
+					}
 				}
 			}
 

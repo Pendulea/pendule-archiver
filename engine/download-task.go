@@ -354,6 +354,7 @@ func buildArchiveDownloader(date string, set *pcommon.SetJSON, t ArchiveType) *g
 			if date == date2 && set.Settings.IDString() == set2.Settings.IDString() && t == t2 {
 				return false
 			}
+
 		}
 		return true
 	})

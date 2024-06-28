@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"os"
 	"os/signal"
 	"syscall"
@@ -36,17 +35,6 @@ func main() {
 	initLogger()
 	pcommon.Env.Init()
 	engine.Engine.Init()
-
-	go func() {
-		for {
-			time.Sleep(time.Second * 5)
-			if engine.Engine.CountQueued() > 0 {
-				fmt.Println("")
-				engine.Engine.PrintStatus()
-				fmt.Println("")
-			}
-		}
-	}()
 
 	go func() {
 		for {

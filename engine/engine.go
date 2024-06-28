@@ -31,7 +31,7 @@ func (e *engine) Init() {
 		client.Connect()
 		options := gorunner.NewEngineOptions().
 			SetName("Archiver").
-			SetMaxSimultaneousRunner(4).SetMaxRetry(MAX_RETRY_PER_DOWLOAD_FAILED).
+			SetMaxSimultaneousRunner(2).SetMaxRetry(MAX_RETRY_PER_DOWLOAD_FAILED).
 			SetshouldRunAgain(func(taskID string, lastExecutionTime time.Time) bool {
 				return time.Since(lastExecutionTime) > time.Hour*6
 			})
@@ -41,6 +41,16 @@ func (e *engine) Init() {
 			activeSets: make(map[string]*pcommon.SetJSON),
 			mu:         sync.RWMutex{},
 		}
+		go func(eng *engine) {
+			for {
+				time.Sleep(time.Second * 5)
+				if eng.CountQueued() > 0 {
+					fmt.Println("")
+					eng.PrintStatus()
+					fmt.Println("")
+				}
+			}
+		}(Engine)
 	}
 }
 
@@ -138,8 +148,12 @@ func handleSet(e *engine, set *pcommon.SetJSON) error {
 				}
 				checked[archiveType] = true
 			}
-			e.DownloadArchive(date, set, archiveType)
 			e.FragmentDownloadedArchive(date, set, archiveType)
+		}
+		for _, v := range filtered {
+			archiveType := ArchiveType(v[0])
+			date := v[1]
+			e.DownloadArchive(date, set, archiveType)
 		}
 	}
 
