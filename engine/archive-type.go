@@ -30,12 +30,7 @@ func (at ArchiveType) GetArchiveZipPath(date string, set *pcommon.SetJSON) strin
 
 func (at ArchiveType) GetURL(date string, set *pcommon.SetJSON) (string, error) {
 
-	t, err := GetSetType(set.Settings)
-	if err != nil {
-		return "", err
-	}
-
-	if t == SUPPORTED_BINANCE_PAIR {
+	if yes, _ := set.Settings.IsSupportedBinancePair(); yes {
 		symbol := strings.ToUpper(set.Settings.IDString())
 		switch at {
 		case BINANCE_SPOT_TRADES:

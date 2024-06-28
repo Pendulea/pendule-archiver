@@ -96,8 +96,7 @@ func (e *engine) RefreshSets() {
 }
 
 func handleSet(e *engine, set *pcommon.SetJSON) error {
-	_, err := GetSetType(set.Settings)
-	if err != nil {
+	if err := set.Settings.IsValid(); err != nil {
 		return err
 	}
 
@@ -126,9 +125,22 @@ func handleSet(e *engine, set *pcommon.SetJSON) error {
 		return i[0] + i[1]
 	})
 
-	for _, v := range filtered {
-		e.DownloadArchive(v[1], set, ArchiveType(v[0]))
-		e.FragmentDownloadedArchive(v[1], set, ArchiveType(v[0]))
+	if len(filtered) > 0 {
+
+		checked := map[ArchiveType]bool{}
+		for _, v := range filtered {
+			archiveType := ArchiveType(v[0])
+			date := v[1]
+			if _, ok := checked[archiveType]; !ok {
+				_, err := archiveType.GetURL(date, set)
+				if err != nil {
+					return err
+				}
+				checked[archiveType] = true
+			}
+			e.DownloadArchive(date, set, archiveType)
+			e.FragmentDownloadedArchive(date, set, archiveType)
+		}
 	}
 
 	return nil
