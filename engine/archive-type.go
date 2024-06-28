@@ -36,7 +36,7 @@ func (at ArchiveType) GetURL(date string, set *pcommon.SetJSON) (string, error) 
 	}
 
 	if t == SUPPORTED_BINANCE_PAIR {
-		symbol := strings.ToLower(set.Settings.ID[0] + set.Settings.ID[1])
+		symbol := strings.ToUpper(set.Settings.IDString())
 		switch at {
 		case BINANCE_SPOT_TRADES:
 			fileName := fmt.Sprintf("%s-trades-%s.zip", symbol, date)
@@ -68,7 +68,7 @@ func (at ArchiveType) GetTargetedAssets() []pcommon.AssetType {
 }
 
 func GetRequiredArchiveType(assetType pcommon.AssetType) ArchiveType {
-	for arcT, _ := range ArchivesIndex {
+	for arcT := range ArchivesIndex {
 		if lo.IndexOf(arcT.GetTargetedAssets(), assetType) != -1 {
 			return arcT
 		}

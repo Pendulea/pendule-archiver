@@ -23,30 +23,9 @@ func addArchiveFragmenterProcess(runner *gorunner.Runner) {
 		t, _ := gorunner.GetArg[ArchiveType](runner.Args, ARG_VALUE_ARCHIVE_TYPE)
 
 		archivePath := t.GetArchiveZipPath(date, set)
-
 		stat, err := os.Stat(archivePath)
-		if err != nil && !os.IsNotExist(err) {
+		if err != nil {
 			return err
-		}
-		if err != nil && os.IsNotExist(err) {
-			return nil
-		}
-		if stat.ModTime().Add(time.Minute * 2).After(time.Now()) {
-			return nil
-		}
-
-		tree, ok := ArchivesIndex[t]
-		if !ok {
-			return fmt.Errorf("archive tree not found")
-		}
-		countFound := 0
-		for _, col := range tree.Columns {
-			if _, err := os.Stat(set.Settings.BuildArchiveFilePath(col.Asset, date, "zip")); err == nil {
-				countFound++
-			}
-		}
-		if countFound == len(tree.Columns) {
-			return nil
 		}
 
 		logData := struct {
@@ -131,6 +110,7 @@ func addArchiveFragmenterProcess(runner *gorunner.Runner) {
 		}
 		logData.total = len(lines)
 
+		tree := ArchivesIndex[t]
 		computedTimes := make([]string, len(lines))
 		timeTitle := strings.ToLower(tree.Time.OriginColumnTitle)
 
@@ -138,12 +118,20 @@ func addArchiveFragmenterProcess(runner *gorunner.Runner) {
 			done := false
 			if timeTitle != "" {
 				if idx, ok := headerXY[timeTitle]; ok {
-					computedTimes[i] = tree.Time.DataFilter(line[idx], line)
+					if tree.Time.DataFilter == nil {
+						computedTimes[i] = line[idx]
+					} else {
+						computedTimes[i] = tree.Time.DataFilter(line[idx], line, headerXY)
+					}
 					done = true
 				}
 			}
 			if !done && tree.Time.OriginColumnIndex >= 0 {
-				computedTimes[i] = tree.Time.DataFilter(line[tree.Time.OriginColumnIndex], line)
+				if tree.Time.DataFilter == nil {
+					computedTimes[i] = line[tree.Time.OriginColumnIndex]
+				} else {
+					computedTimes[i] = tree.Time.DataFilter(line[tree.Time.OriginColumnIndex], line, headerXY)
+				}
 				done = true
 			}
 
@@ -183,7 +171,7 @@ func addArchiveFragmenterProcess(runner *gorunner.Runner) {
 			}
 			writer := csv.NewWriter(file)
 			//write header
-			if err := writer.Write([]string{"time", string(col.Asset)}); err != nil {
+			if err := writer.Write([]string{string(pcommon.ColumnType.TIME), string(col.Asset)}); err != nil {
 				rmAllFiles()
 				return err
 			}
@@ -195,11 +183,19 @@ func addArchiveFragmenterProcess(runner *gorunner.Runner) {
 				value := ""
 				if colTitle != "" {
 					if idx, ok := headerXY[colTitle]; ok {
-						value = col.DataFilter(line[idx], line)
+						if col.DataFilter == nil {
+							value = line[idx]
+						} else {
+							value = col.DataFilter(line[idx], line, headerXY)
+						}
 					}
 				}
 				if value == "" && col.OriginColumnIndex >= 0 {
-					value = col.DataFilter(line[col.OriginColumnIndex], line)
+					if col.DataFilter == nil {
+						value = line[col.OriginColumnIndex]
+					} else {
+						value = col.DataFilter(line[col.OriginColumnIndex], line, headerXY)
+					}
 				}
 
 				if value == "" {

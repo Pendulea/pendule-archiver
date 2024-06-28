@@ -1,6 +1,8 @@
 package engine
 
 import (
+	"fmt"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -125,10 +127,45 @@ func handleSet(e *engine, set *pcommon.SetJSON) error {
 	})
 
 	for _, v := range filtered {
-		e.Add(buildArchiveDownloader(v[1], set, ArchiveType(v[0])))
-		e.Add(buildArchiveFragmenter(v[1], set, ArchiveType(v[0])))
+		e.DownloadArchive(v[1], set, ArchiveType(v[0]))
+		e.FragmentDownloadedArchive(v[1], set, ArchiveType(v[0]))
 	}
 
+	return nil
+}
+
+func (e *engine) DownloadArchive(date string, set *pcommon.SetJSON, at ArchiveType) {
+	e.Add(buildArchiveDownloader(date, set, at))
+}
+
+func (e *engine) FragmentDownloadedArchive(date string, set *pcommon.SetJSON, at ArchiveType) error {
+	archivePath := at.GetArchiveZipPath(date, set)
+	stat, err := os.Stat(archivePath)
+	if err != nil && !os.IsNotExist(err) {
+		return err
+	}
+	if err != nil && os.IsNotExist(err) {
+		return nil
+	}
+	if stat.ModTime().Add(time.Minute * 2).After(time.Now()) {
+		return nil
+	}
+
+	tree, ok := ArchivesIndex[at]
+	if !ok {
+		return fmt.Errorf("archive tree not found")
+	}
+	countFound := 0
+	for _, col := range tree.Columns {
+		if _, err := os.Stat(set.Settings.BuildArchiveFilePath(col.Asset, date, "zip")); err == nil {
+			countFound++
+		}
+	}
+	if countFound == len(tree.Columns) {
+		return nil
+	}
+
+	e.Add(buildArchiveFragmenter(date, set, at))
 	return nil
 }
 
