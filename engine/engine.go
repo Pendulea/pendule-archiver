@@ -17,7 +17,7 @@ var CountRPCRequests = 0
 type engine struct {
 	*gorunner.Engine
 	client     *pcommon.RPCClient
-	activeSets map[string]pcommon.SetJSON
+	activeSets map[string]*pcommon.SetJSON
 	status     *pcommon.GetStatusResponse
 	mu         sync.RWMutex
 }
@@ -36,7 +36,7 @@ func (e *engine) Init() {
 		Engine = &engine{
 			Engine:     gorunner.NewEngine(options),
 			client:     client,
-			activeSets: make(map[string]pcommon.SetJSON),
+			activeSets: make(map[string]*pcommon.SetJSON),
 			mu:         sync.RWMutex{},
 		}
 	}
@@ -55,16 +55,6 @@ func (e *engine) refreshStatus() error {
 	return nil
 }
 
-func (e *engine) GetSets() map[string]pcommon.SetJSON {
-	mapCopy := make(map[string]pcommon.SetJSON)
-	e.mu.RLock()
-	for k, v := range e.activeSets {
-		mapCopy[k] = v
-	}
-	e.mu.RUnlock()
-	return mapCopy
-}
-
 func (e *engine) RefreshSets() {
 	if e.status == nil {
 		err := e.refreshStatus()
@@ -81,33 +71,26 @@ func (e *engine) RefreshSets() {
 		}).Error("Error fetching available pair set list")
 		return
 	}
-
-	for id := range e.GetSets() {
-		found := false
-
-		for _, newSet := range setList {
-			if newSet.Settings.IDString() == id {
-				found = true
-				break
-			}
-		}
-
-		if !found {
-			// e.StopSetRunners(id)
-		}
-	}
-
-	newSets := make(map[string]pcommon.SetJSON)
-	for _, set := range setList {
-		newSets[set.Settings.IDString()] = set
-	}
-
 	e.mu.Lock()
-	e.activeSets = newSets
+	mapID := make(map[string]bool)
+	for _, newSet := range setList {
+		id := newSet.Settings.IDString()
+		if _, ok := e.activeSets[id]; !ok {
+			e.activeSets[id] = &newSet
+		}
+		mapID[id] = true
+	}
 	for _, set := range e.activeSets {
-		handleSet(e, &set)
+		id := set.Settings.IDString()
+		if _, ok := mapID[id]; !ok {
+			go e.StopSetRunners(set)
+			delete(e.activeSets, id)
+		}
 	}
 	e.mu.Unlock()
+	for _, set := range e.activeSets {
+		handleSet(e, set)
+	}
 }
 
 func handleSet(e *engine, set *pcommon.SetJSON) error {
@@ -142,16 +125,15 @@ func handleSet(e *engine, set *pcommon.SetJSON) error {
 	})
 
 	for _, v := range filtered {
-		// e.Add(buildArchiveDownloader(v[1], set, ArchiveType(v[0])))
+		e.Add(buildArchiveDownloader(v[1], set, ArchiveType(v[0])))
 		e.Add(buildArchiveFragmenter(v[1], set, ArchiveType(v[0])))
-		return nil
 	}
 
 	return nil
 }
 
-// func (e *engine) StopSetRunners(setID string) {
-// 	e.CancelRunnersByArgs(map[string]interface{}{
-// 		ARG_VALUE_SET_ID: setID,
-// 	})
-// }
+func (e *engine) StopSetRunners(set *pcommon.SetJSON) {
+	e.CancelRunnersByArgs(map[string]interface{}{
+		ARG_VALUE_SET: set,
+	})
+}
