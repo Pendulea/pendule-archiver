@@ -117,29 +117,45 @@ func handleSet(e *engine, set *pcommon.SetJSON) error {
 
 	list := []DL{}
 	for _, asset := range set.Assets {
-		if asset.Timeframe == e.status.MinTimeframe {
-			assetMax := asset.ConsistencyRange[1]
-			max := pcommon.Format.BuildDateStr(asset.ConsistencyMaxLookbackDays)
-			for t := assetMax; strings.Compare(pcommon.Format.FormatDateStr(t.ToTime()), max) == -1; t = t.Add(time.Hour * 24) {
-				list = append(list, DL{
-					AssetID: asset.ID,
-					Date:    pcommon.Format.FormatDateStr(t.ToTime()),
-				})
-			}
+		c := asset.FindConsistencyByTimeframe(time.Duration(e.status.MinTimeframe) * time.Millisecond)
+		if c == nil {
+			continue
+		}
+
+		assetMax := c.Range[1]
+		max := pcommon.Format.BuildDateStr(asset.ConsistencyMaxLookbackDays)
+		for t := assetMax; strings.Compare(pcommon.Format.FormatDateStr(t.ToTime()), max) == -1; t = t.Add(time.Hour * 24) {
+			list = append(list, DL{
+				AssetID: asset.Address.AssetType,
+				Date:    pcommon.Format.FormatDateStr(t.ToTime()),
+			})
 		}
 	}
-	filtered := lo.UniqBy(lo.Map(list, func(i DL, index int) []string {
-		t := GetRequiredArchiveType(i.AssetID)
-		return []string{string(t), i.Date}
-	}), func(i []string) string {
-		return i[0] + i[1]
-	})
+	filtered :=
+		lo.UniqBy(
+			lo.Filter(
+				//map
+				lo.Map(list, func(i DL, index int) []string {
+					t := i.AssetID.GetRequiredArchiveType()
+					if t == nil {
+						return nil
+					}
+					return []string{string(*t), i.Date}
+				}),
+				//filter
+				func(elem []string, index int) bool {
+					return elem != nil
+				}),
+			//uniqBy
+			func(i []string) string {
+				return i[0] + i[1]
+			})
 
 	if len(filtered) > 0 {
 
-		checked := map[ArchiveType]bool{}
+		checked := map[pcommon.ArchiveType]bool{}
 		for _, v := range filtered {
-			archiveType := ArchiveType(v[0])
+			archiveType := pcommon.ArchiveType(v[0])
 			date := v[1]
 			if _, ok := checked[archiveType]; !ok {
 				_, err := archiveType.GetURL(date, set)
@@ -151,7 +167,7 @@ func handleSet(e *engine, set *pcommon.SetJSON) error {
 			e.FragmentDownloadedArchive(date, set, archiveType)
 		}
 		for _, v := range filtered {
-			archiveType := ArchiveType(v[0])
+			archiveType := pcommon.ArchiveType(v[0])
 			date := v[1]
 			e.DownloadArchive(date, set, archiveType)
 		}
@@ -160,11 +176,11 @@ func handleSet(e *engine, set *pcommon.SetJSON) error {
 	return nil
 }
 
-func (e *engine) DownloadArchive(date string, set *pcommon.SetJSON, at ArchiveType) {
+func (e *engine) DownloadArchive(date string, set *pcommon.SetJSON, at pcommon.ArchiveType) {
 	e.Add(buildArchiveDownloader(date, set, at))
 }
 
-func (e *engine) FragmentDownloadedArchive(date string, set *pcommon.SetJSON, at ArchiveType) error {
+func (e *engine) FragmentDownloadedArchive(date string, set *pcommon.SetJSON, at pcommon.ArchiveType) error {
 	archivePath := at.GetArchiveZipPath(date, set)
 	stat, err := os.Stat(archivePath)
 	if err != nil && !os.IsNotExist(err) {
@@ -177,7 +193,7 @@ func (e *engine) FragmentDownloadedArchive(date string, set *pcommon.SetJSON, at
 		return nil
 	}
 
-	tree, ok := ArchivesIndex[at]
+	tree, ok := pcommon.ArchivesIndex[at]
 	if !ok {
 		return fmt.Errorf("archive tree not found")
 	}

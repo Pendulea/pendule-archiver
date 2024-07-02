@@ -125,7 +125,7 @@ func addArchiveDownloaderProcess(runner *gorunner.Runner) {
 	runner.AddProcess(func() error {
 		date, _ := gorunner.GetArg[string](runner.Args, ARG_VALUE_DATE)
 		set, _ := gorunner.GetArg[*pcommon.SetJSON](runner.Args, ARG_VALUE_SET)
-		t, _ := gorunner.GetArg[ArchiveType](runner.Args, ARG_VALUE_ARCHIVE_TYPE)
+		t, _ := gorunner.GetArg[pcommon.ArchiveType](runner.Args, ARG_VALUE_ARCHIVE_TYPE)
 
 		outputFP := t.GetArchiveZipPath(date, set)
 
@@ -151,7 +151,7 @@ func addArchiveDownloaderProcess(runner *gorunner.Runner) {
 			return err
 		}
 
-		if t == BINANCE_SPOT_TRADES {
+		if t == pcommon.BINANCE_SPOT_TRADES {
 			symbol := strings.ToUpper(set.Settings.ID[0] + set.Settings.ID[1])
 			filename := fmt.Sprintf("%s-trades-%s.zip", symbol, date)
 			path := filepath.Join(os.Getenv("ARCHIVES_DIR"), symbol, "_spot", filename)
@@ -165,7 +165,7 @@ func addArchiveDownloaderProcess(runner *gorunner.Runner) {
 			}
 		}
 
-		if t == BINANCE_FUTURES_TRADES {
+		if t == pcommon.BINANCE_FUTURES_TRADES {
 			symbol := strings.ToUpper(set.Settings.ID[0] + set.Settings.ID[1])
 			filename := fmt.Sprintf("%s-trades-%s.zip", symbol, date)
 			path := filepath.Join(os.Getenv("ARCHIVES_DIR"), symbol, "_futures", filename)
@@ -178,7 +178,7 @@ func addArchiveDownloaderProcess(runner *gorunner.Runner) {
 			}
 		}
 
-		if t == BINANCE_BOOK_DEPTH {
+		if t == pcommon.BINANCE_BOOK_DEPTH {
 			symbol := strings.ToUpper(set.Settings.ID[0] + set.Settings.ID[1])
 			filename := fmt.Sprintf("%s-bookDepth-%s.zip", symbol, date)
 			path := filepath.Join(os.Getenv("ARCHIVES_DIR"), symbol, "book_depth", filename)
@@ -190,7 +190,7 @@ func addArchiveDownloaderProcess(runner *gorunner.Runner) {
 				return nil
 			}
 		}
-		if t == BINANCE_METRICS {
+		if t == pcommon.BINANCE_METRICS {
 			symbol := strings.ToUpper(set.Settings.ID[0] + set.Settings.ID[1])
 			filename := fmt.Sprintf("%s-metrics-%s.zip", symbol, date)
 			path := filepath.Join(os.Getenv("ARCHIVES_DIR"), symbol, "metrics", filename)
@@ -208,8 +208,8 @@ func addArchiveDownloaderProcess(runner *gorunner.Runner) {
 			return err
 		}
 
-		lastLogs := make(map[ArchiveType]int64)
-		printProgressLog := func(t ArchiveType, current int64, total int64, startedAt time.Time) {
+		lastLogs := make(map[pcommon.ArchiveType]int64)
+		printProgressLog := func(t pcommon.ArchiveType, current int64, total int64, startedAt time.Time) {
 			if current == total {
 				log.WithFields(log.Fields{
 					"rid":  runner.ID,
@@ -242,7 +242,7 @@ func addArchiveDownloaderProcess(runner *gorunner.Runner) {
 			}).Infof("Downloading %s...", t)
 		}
 
-		handleDownloadError := func(perfectURL string, t ArchiveType, err error) error {
+		handleDownloadError := func(perfectURL string, t pcommon.ArchiveType, err error) error {
 
 			checkRouteIsValid := func() bool {
 				resp, err := http.Head(perfectURL) // Perform a HEAD request
@@ -254,7 +254,7 @@ func addArchiveDownloaderProcess(runner *gorunner.Runner) {
 			}
 
 			if err != nil {
-				archiveIndex, found := ArchivesIndex[t]
+				archiveIndex, found := pcommon.ArchivesIndex[t]
 				if !found {
 					log.Warn("Archive index not found")
 					return err
@@ -309,8 +309,12 @@ func addArchiveDownloaderProcess(runner *gorunner.Runner) {
 			date := ""
 			for _, a := range t.GetTargetedAssets() {
 				for _, sass := range set.Assets {
-					if a == sass.ID {
-						date = pcommon.Format.FormatDateStr(sass.ConsistencyRange[0].ToTime())
+					if a == sass.Address.AssetType {
+						c := sass.FindConsistencyByTimeframe(time.Duration(Engine.status.MinTimeframe) * time.Millisecond)
+						if c == nil {
+							return err
+						}
+						date = pcommon.Format.FormatDateStr(c.Range[0].ToTime())
 						break
 					}
 				}
@@ -330,7 +334,7 @@ func addArchiveDownloaderProcess(runner *gorunner.Runner) {
 
 }
 
-func buildArchiveDownloader(date string, set *pcommon.SetJSON, t ArchiveType) *gorunner.Runner {
+func buildArchiveDownloader(date string, set *pcommon.SetJSON, t pcommon.ArchiveType) *gorunner.Runner {
 
 	id := fmt.Sprintf("dl-%s-%s-%s", set.Settings.IDString(), date, string(t))
 	runner := gorunner.NewRunner(id)
@@ -344,12 +348,12 @@ func buildArchiveDownloader(date string, set *pcommon.SetJSON, t ArchiveType) *g
 	runner.AddRunningFilter(func(details gorunner.EngineDetails, runner *gorunner.Runner) bool {
 		date, _ := gorunner.GetArg[string](runner.Args, ARG_VALUE_DATE)
 		set, _ := gorunner.GetArg[*pcommon.SetJSON](runner.Args, ARG_VALUE_SET)
-		t, _ := gorunner.GetArg[ArchiveType](runner.Args, ARG_VALUE_ARCHIVE_TYPE)
+		t, _ := gorunner.GetArg[pcommon.ArchiveType](runner.Args, ARG_VALUE_ARCHIVE_TYPE)
 
 		for _, r := range details.RunningRunners {
 			date2, _ := gorunner.GetArg[string](r.Args, ARG_VALUE_DATE)
 			set2, _ := gorunner.GetArg[*pcommon.SetJSON](r.Args, ARG_VALUE_SET)
-			t2, _ := gorunner.GetArg[ArchiveType](r.Args, ARG_VALUE_ARCHIVE_TYPE)
+			t2, _ := gorunner.GetArg[pcommon.ArchiveType](r.Args, ARG_VALUE_ARCHIVE_TYPE)
 
 			if date == date2 && set.Settings.IDString() == set2.Settings.IDString() && t == t2 {
 				return false

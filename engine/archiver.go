@@ -21,7 +21,7 @@ func addArchiveFragmenterProcess(runner *gorunner.Runner) {
 	runner.AddProcess(func() error {
 		date, _ := gorunner.GetArg[string](runner.Args, ARG_VALUE_DATE)
 		set, _ := gorunner.GetArg[*pcommon.SetJSON](runner.Args, ARG_VALUE_SET)
-		t, _ := gorunner.GetArg[ArchiveType](runner.Args, ARG_VALUE_ARCHIVE_TYPE)
+		t, _ := gorunner.GetArg[pcommon.ArchiveType](runner.Args, ARG_VALUE_ARCHIVE_TYPE)
 
 		archivePath := t.GetArchiveZipPath(date, set)
 		stat, err := os.Stat(archivePath)
@@ -111,7 +111,7 @@ func addArchiveFragmenterProcess(runner *gorunner.Runner) {
 		}
 		logData.total = len(lines)
 
-		tree := ArchivesIndex[t]
+		tree := pcommon.ArchivesIndex[t]
 		computedTimes := make([]string, len(lines))
 		timeTitle := strings.ToLower(tree.Time.OriginColumnTitle)
 
@@ -156,7 +156,7 @@ func addArchiveFragmenterProcess(runner *gorunner.Runner) {
 		var assetJSON *pcommon.AssetJSON = nil
 		for _, col := range tree.Columns {
 			for _, asset := range set.Assets {
-				if asset.ID == col.Asset {
+				if asset.Address.AssetType == col.Asset {
 					assetJSON = &asset
 					break
 				}
@@ -231,7 +231,7 @@ func addArchiveFragmenterProcess(runner *gorunner.Runner) {
 				if len(value) > 0 {
 					if assetJSON != nil {
 						if v, err := strconv.ParseFloat(value, 64); err == nil {
-							value = pcommon.Format.Float(v, assetJSON.Precision)
+							value = pcommon.Format.Float(v, assetJSON.Decimals)
 						}
 					}
 					if err := writer.Write([]string{strings.TrimSpace(computedTimes[idx]), value}); err != nil {
@@ -260,7 +260,7 @@ func addArchiveFragmenterProcess(runner *gorunner.Runner) {
 	})
 }
 
-func buildArchiveFragmenter(date string, set *pcommon.SetJSON, t ArchiveType) *gorunner.Runner {
+func buildArchiveFragmenter(date string, set *pcommon.SetJSON, t pcommon.ArchiveType) *gorunner.Runner {
 
 	id := fmt.Sprintf("frag-%s-%s-%s", set.Settings.IDString(), date, string(t))
 	runner := gorunner.NewRunner(id)
@@ -274,12 +274,12 @@ func buildArchiveFragmenter(date string, set *pcommon.SetJSON, t ArchiveType) *g
 	runner.AddRunningFilter(func(details gorunner.EngineDetails, runner *gorunner.Runner) bool {
 		date, _ := gorunner.GetArg[string](runner.Args, ARG_VALUE_DATE)
 		set, _ := gorunner.GetArg[*pcommon.SetJSON](runner.Args, ARG_VALUE_SET)
-		t, _ := gorunner.GetArg[ArchiveType](runner.Args, ARG_VALUE_ARCHIVE_TYPE)
+		t, _ := gorunner.GetArg[pcommon.ArchiveType](runner.Args, ARG_VALUE_ARCHIVE_TYPE)
 
 		for _, r := range details.RunningRunners {
 			date2, _ := gorunner.GetArg[string](r.Args, ARG_VALUE_DATE)
 			set2, _ := gorunner.GetArg[*pcommon.SetJSON](r.Args, ARG_VALUE_SET)
-			t2, _ := gorunner.GetArg[ArchiveType](r.Args, ARG_VALUE_ARCHIVE_TYPE)
+			t2, _ := gorunner.GetArg[pcommon.ArchiveType](r.Args, ARG_VALUE_ARCHIVE_TYPE)
 
 			if date == date2 && set.Settings.IDString() == set2.Settings.IDString() && t == t2 {
 				return false
