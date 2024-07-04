@@ -23,7 +23,7 @@ func addArchiveFragmenterProcess(runner *gorunner.Runner) {
 		set, _ := gorunner.GetArg[*pcommon.SetJSON](runner.Args, ARG_VALUE_SET)
 		t, _ := gorunner.GetArg[pcommon.ArchiveType](runner.Args, ARG_VALUE_ARCHIVE_TYPE)
 
-		archivePath := t.GetArchiveZipPath(date, set)
+		archivePath := t.GetArchiveZipPath(date, set.Settings)
 		stat, err := os.Stat(archivePath)
 		if err != nil {
 			return err

@@ -76,30 +76,30 @@ func (e *engine) RefreshSets() {
 	}
 
 	CountRPCRequests++
-	setList, err := pcommon.RPC.ParserRequests.FetchAvailableSetList(e.client)
+	newSetList, err := pcommon.RPC.ParserRequests.FetchAvailableSetList(e.client)
 	if err != nil {
 		log.WithFields(log.Fields{
 			"error": err.Error(),
 		}).Error("Error fetching available pair set list")
 		return
 	}
+
 	e.mu.Lock()
-	mapID := make(map[string]bool)
-	for _, newSet := range setList {
-		id := newSet.Settings.IDString()
-		if _, ok := e.activeSets[id]; !ok {
-			e.activeSets[id] = &newSet
+	for _, oldSet := range e.activeSets {
+		_, ok := lo.Find(newSetList, func(ns pcommon.SetJSON) bool {
+			return ns.Settings.IDString() == oldSet.Settings.IDString()
+		})
+		if !ok {
+			go e.StopSetRunners(oldSet)
+			delete(e.activeSets, oldSet.Settings.IDString())
 		}
-		mapID[id] = true
 	}
-	for _, set := range e.activeSets {
-		id := set.Settings.IDString()
-		if _, ok := mapID[id]; !ok {
-			go e.StopSetRunners(set)
-			delete(e.activeSets, id)
-		}
+
+	for _, newSet := range newSetList {
+		e.activeSets[newSet.Settings.IDString()] = &newSet
 	}
 	e.mu.Unlock()
+
 	for _, set := range e.activeSets {
 		handleSet(e, set)
 	}
@@ -158,7 +158,7 @@ func handleSet(e *engine, set *pcommon.SetJSON) error {
 			archiveType := pcommon.ArchiveType(v[0])
 			date := v[1]
 			if _, ok := checked[archiveType]; !ok {
-				_, err := archiveType.GetURL(date, set)
+				_, err := archiveType.GetURL(date, set.Settings)
 				if err != nil {
 					return err
 				}
@@ -181,7 +181,7 @@ func (e *engine) DownloadArchive(date string, set *pcommon.SetJSON, at pcommon.A
 }
 
 func (e *engine) FragmentDownloadedArchive(date string, set *pcommon.SetJSON, at pcommon.ArchiveType) error {
-	archivePath := at.GetArchiveZipPath(date, set)
+	archivePath := at.GetArchiveZipPath(date, set.Settings)
 	stat, err := os.Stat(archivePath)
 	if err != nil && !os.IsNotExist(err) {
 		return err

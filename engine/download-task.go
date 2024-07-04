@@ -127,7 +127,7 @@ func addArchiveDownloaderProcess(runner *gorunner.Runner) {
 		set, _ := gorunner.GetArg[*pcommon.SetJSON](runner.Args, ARG_VALUE_SET)
 		t, _ := gorunner.GetArg[pcommon.ArchiveType](runner.Args, ARG_VALUE_ARCHIVE_TYPE)
 
-		outputFP := t.GetArchiveZipPath(date, set)
+		outputFP := t.GetArchiveZipPath(date, set.Settings)
 
 		//check if file already exist
 		if _, err := os.Stat(outputFP); err == nil {
@@ -203,7 +203,7 @@ func addArchiveDownloaderProcess(runner *gorunner.Runner) {
 			}
 		}
 
-		url, err := t.GetURL(date, set)
+		url, err := t.GetURL(date, set.Settings)
 		if err != nil {
 			return err
 		}
@@ -319,7 +319,7 @@ func addArchiveDownloaderProcess(runner *gorunner.Runner) {
 					}
 				}
 			}
-			perfectURL, err := t.GetURL(date, set)
+			perfectURL, err := t.GetURL(date, set.Settings)
 			if err != nil {
 				log.Warn("Failed to get perfect URL")
 				return err
