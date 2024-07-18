@@ -239,6 +239,9 @@ func addArchiveFragmenterProcess(runner *gorunner.Runner) {
 						return err
 					}
 				}
+				if idx%10000 == 0 {
+					writer.Flush()
+				}
 			}
 
 			writer.Flush()
