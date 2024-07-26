@@ -128,7 +128,6 @@ func addArchiveDownloaderProcess(runner *gorunner.Runner) {
 		t, _ := gorunner.GetArg[pcommon.ArchiveType](runner.Args, ARG_VALUE_ARCHIVE_TYPE)
 
 		outputFP := t.GetArchiveZipPath(date, set.Settings)
-
 		//check if file already exist
 		if _, err := os.Stat(outputFP); err == nil {
 			return nil
@@ -264,13 +263,11 @@ func addArchiveDownloaderProcess(runner *gorunner.Runner) {
 					Engine.Pause(TIMEBREAK_AFTER_TOO_MANY_REQUESTS)
 				}
 				if strings.Contains(err.Error(), FILE_NOT_FOUND_ERROR) {
-
-					xxDaysAgo := pcommon.Format.BuildDateStr(archiveIndex.ConsistencyMaxLookbackDays)
+					xxDaysAgo := pcommon.Format.BuildDateStr(archiveIndex.ConsistencyMaxLookbackDays + 7)
 					if strings.Compare(xxDaysAgo, date) <= 0 {
 						runner.DisableRetry()
 						return err
 					} else if checkRouteIsValid() {
-
 						ext := filepath.Ext(outputFP)
 						fp := outputFP
 						if ext != ".csv" {
@@ -306,7 +303,7 @@ func addArchiveDownloaderProcess(runner *gorunner.Runner) {
 		})
 
 		if err != nil {
-			date := ""
+			firstHistoryDate := ""
 			for _, a := range t.GetTargetedAssets() {
 				for _, sass := range set.Assets {
 					if a == sass.Address.AssetType {
@@ -314,15 +311,15 @@ func addArchiveDownloaderProcess(runner *gorunner.Runner) {
 						if c == nil {
 							return err
 						}
-						date = pcommon.Format.FormatDateStr(c.Range[0].ToTime())
+						firstHistoryDate = pcommon.Format.FormatDateStr(c.Range[0].ToTime())
 						break
 					}
 				}
 			}
-			perfectURL, err := t.GetURL(date, set.Settings)
-			if err != nil {
+			perfectURL, err2 := t.GetURL(firstHistoryDate, set.Settings)
+			if err2 != nil {
 				log.Warn("Failed to get perfect URL")
-				return err
+				return err2
 			}
 			if e := handleDownloadError(perfectURL, t, err); e != nil {
 				return e

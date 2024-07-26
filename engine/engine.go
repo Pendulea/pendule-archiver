@@ -31,7 +31,7 @@ func (e *engine) Init() {
 		client.Connect()
 		options := gorunner.NewEngineOptions().
 			SetName("Archiver").
-			SetMaxSimultaneousRunner(2).SetMaxRetry(MAX_RETRY_PER_DOWLOAD_FAILED).
+			SetMaxSimultaneousRunner(pcommon.Env.MAX_SIMULTANEOUS_PARSING).SetMaxRetry(MAX_RETRY_PER_DOWLOAD_FAILED).
 			SetshouldRunAgain(func(taskID string, lastExecutionTime time.Time) bool {
 				return time.Since(lastExecutionTime) > time.Hour*6
 			})
@@ -95,8 +95,10 @@ func (e *engine) RefreshSets() {
 		}
 	}
 
-	for _, newSet := range newSetList {
-		e.activeSets[newSet.Settings.IDString()] = &newSet
+	for i := 0; i < len(newSetList); i++ {
+		id := newSetList[i].Settings.IDString()
+		set := &newSetList[i]
+		e.activeSets[id] = set
 	}
 	e.mu.Unlock()
 
@@ -117,6 +119,9 @@ func handleSet(e *engine, set *pcommon.SetJSON) error {
 
 	list := []DL{}
 	for _, asset := range set.Assets {
+		if len(asset.Address.Dependencies) > 0 {
+			continue
+		}
 		c := asset.FindConsistencyByTimeframe(time.Duration(e.status.MinTimeframe) * time.Millisecond)
 		if c == nil {
 			continue
@@ -203,6 +208,10 @@ func (e *engine) FragmentDownloadedArchive(date string, set *pcommon.SetJSON, at
 			countFound++
 		}
 	}
+	if date == "2023-02-08" {
+		fmt.Println("countFound", countFound, len(tree.Columns))
+	}
+
 	if countFound == len(tree.Columns) {
 		return nil
 	}
