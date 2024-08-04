@@ -94,7 +94,6 @@ func (e *engine) RefreshSets() {
 			delete(e.activeSets, oldSet.Settings.IDString())
 		}
 	}
-
 	for i := 0; i < len(newSetList); i++ {
 		id := newSetList[i].Settings.IDString()
 		set := &newSetList[i]
@@ -128,7 +127,7 @@ func handleSet(e *engine, set *pcommon.SetJSON) error {
 		}
 
 		assetMax := c.Range[1]
-		max := pcommon.Format.BuildDateStr(asset.ConsistencyMaxLookbackDays)
+		max := pcommon.Format.BuildDateStr(1)
 		for t := assetMax; strings.Compare(pcommon.Format.FormatDateStr(t.ToTime()), max) == -1; t = t.Add(time.Hour * 24) {
 			list = append(list, DL{
 				AssetID: asset.Address.AssetType,
@@ -207,9 +206,6 @@ func (e *engine) FragmentDownloadedArchive(date string, set *pcommon.SetJSON, at
 		if _, err := os.Stat(set.Settings.BuildArchiveFilePath(col.Asset, date, "zip")); err == nil {
 			countFound++
 		}
-	}
-	if date == "2023-02-08" {
-		fmt.Println("countFound", countFound, len(tree.Columns))
 	}
 
 	if countFound == len(tree.Columns) {
