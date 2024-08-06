@@ -4,7 +4,7 @@ go 1.19
 
 require (
 	github.com/fantasim/gorunner v0.3.1
-	github.com/pendulea/pendule-common v1.2.4
+	github.com/pendulea/pendule-common v1.2.5
 	github.com/sirupsen/logrus v1.9.3
 )
 

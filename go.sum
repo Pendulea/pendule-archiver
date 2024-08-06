@@ -82,6 +82,8 @@ github.com/pendulea/pendule-common v1.2.0 h1:Sm12JB16WM4It4/D6FZccmtiMERkakhUF9Q
 github.com/pendulea/pendule-common v1.2.0/go.mod h1:Z18HWO0A0Fs3uwR9GHF7rv28zNQLIdlbt5JYP8vX8is=
 github.com/pendulea/pendule-common v1.2.4 h1:T0db2xt868feXpYL3h2ORMKNHDOZ8oeSAfZSnfGmjOg=
 github.com/pendulea/pendule-common v1.2.4/go.mod h1:Z18HWO0A0Fs3uwR9GHF7rv28zNQLIdlbt5JYP8vX8is=
+github.com/pendulea/pendule-common v1.2.5 h1:Jg74xY4C54cU1ZP5jEtKDRUOukwSxSeWbkW/poSlN5c=
+github.com/pendulea/pendule-common v1.2.5/go.mod h1:Z18HWO0A0Fs3uwR9GHF7rv28zNQLIdlbt5JYP8vX8is=
 github.com/pmezard/go-difflib v1.0.0 h1:4DBwDE0NGyQoBHbLQYPwSUPoCMWR5BEzIk/f1lZbAQM=
 github.com/pmezard/go-difflib v1.0.0/go.mod h1:iKH77koFhYxTK1pcRnkKkqfTogsbg7gZNVY4sRDYZ/4=
 github.com/rivo/uniseg v0.1.0/go.mod h1:J6wj4VEh+S6ZtnVlnTBMWIodfgj8LQOQFoIToxlJtxc=
