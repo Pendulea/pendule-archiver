@@ -127,7 +127,7 @@ func handleSet(e *engine, set *pcommon.SetJSON) error {
 		}
 
 		assetMax := c.Range[1]
-		max := pcommon.Format.BuildDateStr(1)
+		max := pcommon.Format.BuildDateStr(0)
 		for t := assetMax; strings.Compare(pcommon.Format.FormatDateStr(t.ToTime()), max) == -1; t = t.Add(time.Hour * 24) {
 			list = append(list, DL{
 				AssetID: asset.Address.AssetType,
